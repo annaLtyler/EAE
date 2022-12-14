@@ -257,6 +257,9 @@ imageWithText(with.na, use.pheatmap.colors = TRUE, col.text.shift = -38.5,
 all.batch <- which(!is.na(rowSums(with.na)))
 ```
 
+
+### Batch correction procedure
+
 Only CC002 mice were represented in all batches.
 
 The strains are unevenly distributed across
@@ -345,6 +348,8 @@ cds.by.batch <- function(strain.names, batch.num = c(1:4),
     invisible(result)
 }
 ```
+
+### Batch deviation from mean plots
 
 The following boxplots show the deviation from the strain
 mean that we see across all batches for each trait. 
@@ -1069,11 +1074,12 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
 }
 
 
-plot_fdr_fun <- function(scan.results, perm.results){
+plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
 
     fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = 5)
     rownames(fdr_summaries) <- names(scan.results)
     for(ph in 1:length(scan.results)){
+        cat(tab.level, names(scan.results)[ph], "\n")
         summary_thresholds = fdr_summarize(perm.results[[ph]], fdr_cl = 0.95, 
             geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = TRUE, quartz = FALSE)
@@ -1092,6 +1098,7 @@ plot_fdr_fun <- function(scan.results, perm.results){
             labels = names(summary_thresholds)[finite.thresh], cex = 0.5, adj = 0)
         par(xpd = FALSE)
         fdr_summaries[ph,] <- summary_thresholds
+        cat("\n\n")
     }
     colnames(fdr_summaries) <- names(summary_thresholds)
     invisible(fdr_summaries)
@@ -1193,7 +1200,8 @@ severity.perm <- perm_scans(expanded.genoprobs, mapping.pheno, exp.K,
 
 ```{r plot_severity_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
 #plot the scans, and FDR results
-fdr_summaries_severity <- plot_fdr_fun(severity.scans, severity.perm)
+fdr_summaries_severity <- plot_fdr_fun(severity.scans, severity.perm, 
+    tab.level = "####")
 ```
 
 ### Severity by individual allele effects {.tabset .tabset-fade .tabset-pills}
@@ -1216,7 +1224,7 @@ plot_coef_scans(severity.coef, expanded.genoprobs, mapping.pheno)
 #dev.off()
 ```
 
-## Map Severity by Strain Average
+## Map Severity by Strain Average {.tabset .tabset-fade .tabset-pills}
 
 We also used strain averages to map severity.
 First we generated strain-mean versions of the genoprobs
@@ -1235,7 +1243,7 @@ mean.pheno <- t(sapply(u_groups, function(x) colMeans(mapping.pheno[which(groups
 ```
 
 
-```{r map_severity_avg}
+```{r map_severity_avg, warning = FALSE}
 severity.avg.scans <- map_pheno(mean.genoprobs, mean.pheno, mean.K, 
     remove.zeros = FALSE, 
     results.file = here("Results", "scan1_results_severity_avg.RDS"))
@@ -1250,7 +1258,8 @@ severity and the significance thresholds.
 
 ```{r strain_avg_plots, fig.width = 9, fig.height = 5}
 #pdf("~/Desktop/test.pdf")
-fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans, severity.avg.perm)
+fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans, severity.avg.perm,
+    tab.level = "###")
 #dev.off()
 ```
 
@@ -1266,7 +1275,7 @@ kinship matrix, I get a bunch of warnings about the trait
 regression not convergins. So for now we will map incidence
 only at the strain level.
 
-```{r map_incidence}
+```{r map_incidence, warning = FALSE}
 
 norm.inc <- apply(strain.incidence, 2, rankZ)
 
@@ -1283,7 +1292,29 @@ incidence.perm <- perm_scans(mean.genoprobs, mean.pheno, mean.K,
 
 ```{r plot_inc_perm, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
-fdr_summaries_incidence <- plot_fdr_fun(incidence.scan, incidence.perm)
+fdr_summaries_incidence <- plot_fdr_fun(incidence.scan, incidence.perm,
+    tab.level = "####")
 #dev.off()
 ```
 
+```{r test, eval = FALSE}
+u_strain <- unique(factor.cds[,"Strain"])
+strain.idx <- sapply(u_strain, function(x) which(factor.cds[,"Strain"] == x))
+
+strain.var <- t(sapply(strain.idx, function(x) apply(num.cds[x,1:3], 2, function(y) var(y, na.rm = TRUE))))
+pheatmap(strain.var, display_numbers = TRUE)
+
+boxplot(strain.var)
+
+var.scan <- map_pheno(mean.genoprobs, strain.var, mean.K, 
+    remove.zeros = FALSE, 
+    results.file = here("Results", "scan1_results_var.RDS"))
+
+var.perm <- perm_scans(mean.genoprobs, strain.var, mean.K,
+    var.scan, groups = NULL, remove.zeros = FALSE, nperm = nperm,
+    results.file = here("Results", "scan1perm_results_var.RDS"))
+
+#pdf("~/Desktop/test.pdf", width = 9, height = 5)
+fdr_summaries_var <- plot_fdr_fun(var.scan, var.perm)
+#dev.off()
+```
