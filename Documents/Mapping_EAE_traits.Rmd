@@ -54,6 +54,8 @@ cc.color.scheme = "original"
 
 remove.zeros = TRUE #if true, we look only at severity given an animal has disease
                     #if false, we include zeros in the calculation of severity
+
+nperm = 10000
 ```
 
 ```{r load_libraries, warning = FALSE}
@@ -1183,7 +1185,7 @@ severity.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K,
 
 severity.perm <- perm_scans(expanded.genoprobs, mapping.pheno, exp.K,
     severity.scans, groups = names(expanded.idx), remove.zeros = remove.zeros, 
-    results.file = here("Results", "scan1perm_results_severity.RDS"))
+    nperm = nperm, results.file = here("Results", "scan1perm_results_severity.RDS"))
 ```
 
 ### Severity by individual LOD traces
@@ -1238,7 +1240,7 @@ severity.avg.scans <- map_pheno(mean.genoprobs, mean.pheno, mean.K,
     results.file = here("Results", "scan1_results_severity_avg.RDS"))
 
 severity.avg.perm <- perm_scans(mean.genoprobs, mean.pheno, mean.K,
-    severity.avg.scans, groups = NULL, remove.zeros = FALSE, 
+    severity.avg.scans, groups = NULL, remove.zeros = FALSE, nperm = nperm,
     results.file = here("Results", "scan1perm_results_severity_avg.RDS"))
 ```
 
@@ -1272,7 +1274,7 @@ incidence.scan <- map_pheno(mean.genoprobs, mean.pheno, mean.K,
     results.file = here("Results", "scan1_results_incidence.RDS"))
 
 incidence.perm <- perm_scans(mean.genoprobs, mean.pheno, mean.K,
-    incidence.scan, groups = NULL, remove.zeros = FALSE, 
+    incidence.scan, groups = NULL, remove.zeros = FALSE, nperm = nperm,
     results.file = here("Results", "scan1perm_results_incidence.RDS"))
 ```
 
