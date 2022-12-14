@@ -132,11 +132,11 @@ Rather than lumping in animals with and without measurable
 symptoms, I think it makes more sense to map incidence
 and severity separately. 
 
-* *Severity*: The severity of disease when the animal
+* **Severity**: The severity of disease when the animal
     does present with disease. The values of the non-zero 
     cumulative disease scores. Can be mapped at the individual 
     or strain level.
-* *Incidence*: The fraction of animals in a strain with a
+* **Incidence**: The fraction of animals in a strain with a
     non-zero cumulative disease score. Mapped at the
     strain level, or at the individual level as a binary
     trait.
@@ -218,7 +218,7 @@ for(cd in 1:ncol(num.cds)){
 }
 ```
 
-## Batch Effects {.tabset .tabset-fade .tabset-pills}
+## Batch Effects
 
 The individuals were run in multiple batches, which can 
 cause systematic biases in the data. We need to correct
@@ -1115,35 +1115,39 @@ select_threshold <- function(scan.results, fdr_summaries){
 allele_coef <- function(map.geno, map.pheno, map.k, scan.results, 
     lod.threshold, remove.zeros, chr.lod.file, chr.coef.file){
 
-    peak.table <- lapply(scan.results, 
-        function(x) find_peaks(x, map = map, threshold = lod.threshold))
+    peak.table <- lapply(1:length(scan.results), 
+        function(x) find_peaks(scan.results[[x]], map = map, 
+        threshold = lod.threshold[x]))
 
     if(!file.exists(chr.lod.file) || overwrite_previous){
         chr.lod <- chr.coef <- vector(mode = "list", length = nrow(Reduce("rbind", peak.table)))
         idx = 1
         for(ph in 1:length(peak.table)){
-            for(p in 1:nrow(peak.table[[ph]])){
-                chr <- peak.table[[ph]][p,"chr"]
-                peak.loc <- peak.table[[ph]][p,"pos"]
-                trait = names(scan.results)[ph]
-                chr.locale <- which(names(map.geno) == chr)
+            if(nrow(peak.table[[ph]]) > 0){
+                for(p in 1:nrow(peak.table[[ph]])){
+                    chr <- peak.table[[ph]][p,"chr"]
+                    peak.loc <- peak.table[[ph]][p,"pos"]
+                    trait = names(scan.results)[ph]
+                    chr.locale <- which(names(map.geno) == chr)
 
-                if(remove.zeros){
-                    nonzero.idx <- which(map.pheno[,ph] != 0)
-                }else{
-                    nonzero.idx <- 1:nrow(map.pheno)
+                    if(remove.zeros){
+                        nonzero.idx <- which(map.pheno[,ph] != 0)
+                    }else{
+                        nonzero.idx <- 1:nrow(map.pheno)
+                    }
+                    chr.scan <- scan1(map.geno[,chr], 
+                        map.pheno[nonzero.idx,ph,drop=FALSE], 
+                        kinship = map.k[[chr.locale]])
+                    chr.lod[[idx]] <- chr.scan
+                    #plot(chr.scan, map = map);abline(v = peak.loc)
+
+                    effects.scan <- scan1blup(map.geno[,chr], 
+                        map.pheno[nonzero.idx,ph,drop=FALSE], 
+                        kinship = map.k[[chr.locale]])
+                    chr.coef[[idx]] <- effects.scan
+                    #plot_coefCC(effects.scan, map = map);abline(v = peak.loc)
                 }
-                chr.scan <- scan1(map.geno[,chr], 
-                    map.pheno[nonzero.idx,ph,drop=FALSE], 
-                    kinship = map.k[[chr.locale]])
-                chr.lod[[idx]] <- chr.scan
-                #plot(chr.scan, map = map);abline(v = peak.loc)
-
-                effects.scan <- scan1blup(map.geno[,chr], 
-                    map.pheno[nonzero.idx,ph,drop=FALSE], 
-                    kinship = map.k[[chr.locale]])
-                chr.coef[[idx]] <- effects.scan
-                idx = idx + 1
+                idx = idx + 1 #increment regardless of whether there is a peak here
             }
         }
         saveRDS(chr.lod, chr.lod.file)
@@ -1156,30 +1160,33 @@ allele_coef <- function(map.geno, map.pheno, map.k, scan.results,
     return(result)
 }
 
-plot_coef_scans <- function(coef.results, map.geno, map.pheno){
+plot_coef_scans <- function(coef.results, map.geno, map.pheno, tab.level = "###"){
+    
     peak.table <- coef.results$peak.table
     chr.lod <- coef.results$LOD
     chr.coef <- coef.results$Coef
 
     idx <- 1
     for(ph in 1:length(peak.table)){
-        for(p in 1:nrow(peak.table[[ph]])){
-            par(mfrow = c(2,1))
-            chr <- peak.table[[ph]][p,"chr"]
-            trait <- colnames(map.pheno)[ph]
-            peak.loc <- peak.table[[ph]][p,"pos"]
-            chr.locale <- which(names(map.geno) == chr)
-            
-            #cat("####", trait, "Chr", chr, "\n")
+        if(nrow(peak.table[[ph]]) > 0){
+            for(p in 1:nrow(peak.table[[ph]])){
+                par(mfrow = c(2,1))
+                chr <- peak.table[[ph]][p,"chr"]
+                trait <- colnames(map.pheno)[ph]
+                peak.loc <- peak.table[[ph]][p,"pos"]
+                chr.locale <- which(names(map.geno) == chr)
+                
+                cat(tab.level, trait, "Chr", chr, "\n")
 
-            plot(chr.lod[[idx]], map = map, main = paste(trait, "Chr", chr))
-            abline(v = peak.loc)
+                plot(chr.lod[[idx]], map = map, main = paste(trait, "Chr", chr))
+                abline(v = peak.loc)
 
-            plot_coefCC(chr.coef[[idx]], map = map, main = paste(trait, "Chr", chr))
-            abline(v = peak.loc, lwd = 2)
+                plot_coefCC(chr.coef[[idx]], map = map, main = paste(trait, "Chr", chr))
+                abline(v = peak.loc, lwd = 2)
 
-            idx = idx + 1
-            #cat("\n\n")
+                idx = idx + 1
+                cat("\n\n")
+            }
         }
     }
 }
@@ -1196,7 +1203,7 @@ severity.perm <- perm_scans(expanded.genoprobs, mapping.pheno, exp.K,
     nperm = nperm, results.file = here("Results", "scan1perm_results_severity.RDS"))
 ```
 
-### Severity by individual LOD traces
+### Severity by individual LOD traces {.tabset .tabset-fade .tabset-pills}
 
 ```{r plot_severity_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
 #plot the scans, and FDR results
@@ -1207,20 +1214,22 @@ fdr_summaries_severity <- plot_fdr_fun(severity.scans, severity.perm,
 ### Severity by individual allele effects {.tabset .tabset-fade .tabset-pills}
 
 ```{r thresh}
-allele.thresh = 5
+allele.thresh = c(4,5,5)
 ```
 
-The following plots show the allele effects for QTL with LOD 
-scores greater than `r allele.thresh`.
+The following plots show the allele effects for the largest
+QTL for each trait.
 
 ```{r scan_coef, fig.width = 7, fig.height = 7, results = "asis"}
-severity.coef <- allele_coef(expanded.genoprobs, mapping.pheno, 
-    exp.K, severity.scans, allele.thresh, remove.zeros, 
+severity.coef <- allele_coef(map.geno = expanded.genoprobs, 
+    map.pheno = mapping.pheno, map.k = exp.K, scan.results = severity.scans,
+    lod.threshold = allele.thresh, remove.zeros = remove.zeros, 
     chr.lod.file = here("Results", "Chr.LOD.Severity.RDS"), 
     chr.coef.file = here("Results", "Chr.Coef.Severity.RDS"))
 
 #pdf("~/Desktop/test.pdf", width = 7, height = 7)
-plot_coef_scans(severity.coef, expanded.genoprobs, mapping.pheno)
+plot_coef_scans(severity.coef, expanded.genoprobs, mapping.pheno, 
+    tab.level = "####")
 #dev.off()
 ```
 
@@ -1256,7 +1265,7 @@ severity.avg.perm <- perm_scans(mean.genoprobs, mean.pheno, mean.K,
 The following plots show the LOD traces for the strain averages of 
 severity and the significance thresholds.
 
-```{r strain_avg_plots, fig.width = 9, fig.height = 5}
+```{r strain_avg_plots, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
 #pdf("~/Desktop/test.pdf")
 fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans, severity.avg.perm,
     tab.level = "###")
