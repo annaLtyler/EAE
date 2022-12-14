@@ -1,0 +1,12 @@
+/Data
+*RData
+*RDS
+*.DS_Store
+*.html
+*.pdf
+*.jpg
+/Results
+/Documents/Figures
+*.csv
+/Documents/slide_decks
+
