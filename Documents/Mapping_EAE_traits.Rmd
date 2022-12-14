@@ -59,8 +59,9 @@ nperm = 10000
 ```
 
 ```{r load_libraries, warning = FALSE}
-all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr")
+all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr", "parallel")
 load_libraries(all.packages)
+cores = detectCores()-1
 ```
 
 Read in phenotype data.
@@ -509,7 +510,7 @@ if(!file.exists(map.file)){
     write.table(cbind(cc.official, cc.alias), here("Data", "CC_names.txt"), sep = "\t", 
         quote = FALSE, row.names = FALSE, col.names = FALSE)
     
-    cc.genoprobs <- calc_genoprob(cc, cores = 4)    
+    cc.genoprobs <- calc_genoprob(cc, cores = cores)    
     new.genoprobs <- cc.genoprobs
 
     #add strains 83 and 84 to the genoprobs 
@@ -1051,12 +1052,12 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
                     groups = groups[nonzero.idx],
                     kinship = map.k, nperm = nperm, breaks = breaks, 
-                    scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = 4)
+                    scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = cores)
             }else{
                 null_stats = scan1perm_stats(map.geno, 
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
                     kinship = map.k, nperm = nperm, breaks = breaks, 
-                    scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = 4)
+                    scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = cores)
             }
             perm.data[[ph]] <- null_stats
         }
