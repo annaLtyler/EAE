@@ -1,0 +1,263 @@
+## Strain means with separate sexes
+
+The following plots show LOD traces for the traits
+mapped by strain mean separately in the two sexes.
+
+```{r means_by_sex}
+
+m.mean.pheno <- t(sapply(1:length(K.idx), 
+    function(x) colMeans(norm.cds[intersect(which(mapping.covar[,1] == names(K.idx)[x]), which(sex == 1)),,drop=FALSE], na.rm = TRUE)))
+rownames(m.mean.pheno) <- names(K.idx)
+
+f.mean.pheno <- t(sapply(1:length(K.idx), 
+    function(x) colMeans(norm.cds[intersect(which(mapping.covar[,1] == names(K.idx)[x]), which(sex == 0)),,drop=FALSE])))
+rownames(f.mean.pheno) <- names(K.idx)
+
+mean.overall.K <- calc_kinship(mean.genoprobs)
+
+m.mean.file <- here("Results", "scan1_results_males_means.RDS")
+f.mean.file <- here("Results", "scan1_results_females_means.RDS")
+if(!file.exists(m.mean.file) || overwrite_previous){
+    
+    m.mean.scans <- scan1(mean.genoprobs, m.mean.pheno, kinship = mean.K)
+    saveRDS(m.mean.scans, m.mean.file)
+
+    f.mean.scans <- scan1(mean.genoprobs, f.mean.pheno, kinship = mean.K)
+    saveRDS(f.mean.scans, f.mean.file)
+
+}else{
+    m.mean.scans <- readRDS(m.mean.file)
+    f.mean.scans <- readRDS(f.mean.file)
+}
+```
+
+### Male Strain Means
+
+```{r male_mean_scans, fig.width = 9, fig.height = 4}
+for(i in 1:ncol(mapping.pheno)){
+    plot(m.mean.scans, lodcol = i, map = map, main = paste("Male", colnames(mapping.pheno)[i]))
+}
+```
+
+### Female Strain Means
+
+```{r female_mean_scans, fig.width = 9, fig.height = 4}
+for(i in 1:ncol(mapping.pheno)){
+    plot(f.mean.scans, lodcol = i, map = map, main = paste("Female", colnames(mapping.pheno)[i]))
+}
+```
+
+## Map individuals, sex as interactive covariate
+
+The traces below show results for mapping with individuals
+again, but this time using sex as an interactive covariate.
+In the plots below, the mapping with sex as an additive 
+covariate is in red, and the mapping with sex as an interactive
+covariate is in blue. 
+
+I'm  not sure why the mapping looks so strange. It looks as
+if there are sex interactions all over the place, but I don't
+think this is right. I will have to look into this more.
+
+```{r map_sex_interactive}
+int.scan.file <- here("Results", "scan1_results_interactive.RDS")
+if(!file.exists(int.scan.file) || overwrite_previous){
+    int.pheno.scans <- scan1(expanded.genoprobs, mapping.pheno, kinship = exp.K, 
+        addcovar = sex, intcovar = sex)
+    saveRDS(int.pheno.scans, int.scan.file)
+
+}else{
+    int.pheno.scans <- readRDS(int.scan.file)
+}
+
+```
+
+
+```{r int_scans, fig.width = 9, fig.height = 4}
+for(i in 1:ncol(mapping.pheno)){
+    plot(int.pheno.scans, lodcol = i, map = map, 
+        main = colnames(mapping.pheno)[i])
+    plot(pheno.scans, lodcol = i, map = map, add = TRUE, col = "red")
+}
+```
+
+
+
+## Map with strain means
+
+We then mapped the traits again using strain means. 
+As we can see from the scatter plots of individuals
+in the section "Phenotype Distributions", strain 
+means are not neceesarily a good description of 
+the distribution across individuals in the strain, 
+since each strain has such wide variation. 
+
+Mapping with strain means shows better defined QTL
+than mapping with individuals, but it is possible 
+these could be false positives because we've falsely
+reduced the variation across individual genotypes.
+
+The first set of plots show the LOD traces for each
+trait adjusted by sex.
+
+```{r strain_avg}
+adj.pheno <- adjust(mapping.pheno, sex)
+mean.pheno <- t(sapply(1:length(K.idx), 
+    function(x) colMeans(adj.pheno[which(mapping.covar[,1] == names(K.idx)[x]),])))
+rownames(mean.pheno) <- names(K.idx)
+
+just.strain <- sapply(strsplit(rownames(mapping.genoprobs[[1]]), "/", fixed = TRUE), function(x) x[1])
+mean.genoprobs <- mapping.genoprobs
+mean.K <- mapping.K
+for(i in 1:length(mean.genoprobs)){
+    rownames(mean.genoprobs[[i]]) <- just.strain
+    rownames(mean.K[[i]]) <- colnames(mean.K[[i]]) <- just.strain
+}
+
+mean.scan.file <- here("Results", "scan_results_means.RDS")
+
+if(!file.exists(mean.scan.file) || overwrite_previous){
+    mean.scans <- scan1(mean.genoprobs, mean.pheno, kinship = mean.K)
+    saveRDS(mean.scans, mean.scan.file)
+}else{
+    mean.scans <- readRDS(mean.scan.file)
+}
+
+```
+
+```{r plot_mean, fig.width = 9, fig.height = 4}
+for(i in 1:ncol(mapping.pheno)){
+    plot(mean.scans, lodcol = i, map = map, main = colnames(mapping.pheno)[i])
+}
+```
+
+The following heat map show the scans as above but
+for mapping with strain means. Only LOD scores greater
+than `r lod.thresh` are shown.
+
+```{r multilod_strain, fig.width = 10, fig.height = 2.5, warning = FALSE}
+multilod.plot(mean.scans, map = map, lod.thresh = lod.thresh, 
+    row.name.shift = -3000, use.pheatmap.colors = TRUE, 
+    border.col = "black", border.lwd = 1, legend.height = 6)
+```
+
+
+The following heat map shows all scans plotted together
+so that the coordinates can be compared more easily.
+All LOD scores above `r lod.thresh` are shown.
+
+```{r all_scans, fig.width = 10, fig.height = 3}
+colnames(mean.scans) <- paste(colnames(mean.scans), "mean", sep = "_")
+colnames(pheno.scans) <- paste(colnames(pheno.scans), "ind", sep = "_")
+
+all.scans <- cbind(pheno.scans, mean.scans)
+
+multilod.plot(all.scans, map = map, 
+    lod.thresh = lod.thresh, row.name.shift = -3500, use.pheatmap.colors = TRUE, 
+    border.col = "black", border.lwd = 1, legend.height = 1)
+```
+
+The following heatmap shows the similarity between pairs of scans
+for all the traits. The two primary groups are AR and Global/Classical.
+Within each group, the mappings with individuals and with strain means
+tend to map to the same place, which is reassuring. 
+
+```{r scan_sim, fig.width = 7, fig.height = 7}
+pheatmap(cor(pheno.scans))
+```
+
+The following heatmap shows all the scans again, this time 
+with the traits presented in the same order as the clustered
+correlation matrix above. This ordering better highlights where 
+multiple scans are mapping to the same location. 
+
+```{r clustered_heatmap, fig.width = 10, fig.height = 3}
+
+trait.order <- hclust(dist(cor(all.scans)))$order
+
+multilod.plot(all.scans[,trait.order], map = map, 
+    lod.thresh = 2, row.name.shift = -3500, use.pheatmap.colors = TRUE, 
+    border.col = "black", border.lwd = 1, legend.height = 1)
+```
+
+## Batch effects
+
+The following code compares pairwise batches
+to each other to look for systematic differences
+between them
+
+```{r batch_comparisons}
+batch.pairs <- pair.matrix(1:length(u_batch))
+batch.test <- vector(mode = "list", length = nrow(batch.pairs))
+compared.strains <- rep(NA, nrow(batch.pairs))
+for(bp in 1:nrow(batch.pairs)){
+    batch1 <- batch.pairs[bp,1]
+    batch2 <- batch.pairs[bp,2]
+    cat("####", u_batch[batch1], "vs.", u_batch[batch2], "\n")
+    shared.strain <- rownames(merged.batch)[intersect(which(merged.batch[,batch1] > 0), which(merged.batch[,batch2] > 0))]
+    compared.strains[bp] <- paste(shared.strain, collapse = ", ")
+    test <- cds.by.batch(shared.strain, batch.num = c(batch1, batch2), plot.type = "strip",
+        plot.label = paste(u_batch[batch1], "vs.", u_batch[batch2]), remove.zeros = FALSE)
+
+    batch.test[[bp]] <- test[[1]]
+
+    cat("\n\n")
+}
+```
+
+
+```{r merge_subsets}
+
+all.subsets <- vector(mode = "list", length = length(u_batch))
+for(b in 1:length(u_batch)){
+    batch.idx <- which(batch.pairs == b, arr.ind = TRUE)
+    subsets <- vector(mode = "list", length = nrow(batch.idx))
+    for(su in 1:nrow(batch.idx)){
+        subsets[[su]] <- batch.test[[batch.idx[su,1]]][[batch.idx[su,2]]]
+    }
+    names(subsets) <- paste("subset", 1:length(subsets))
+    #plot.grouped.boxes(subsets, type = "matrix", main = u_batch[b])
+    all.subsets[[b]] <- subsets
+}
+
+test <- lapply(all.subsets, function(x) Reduce("rbind", x))
+names(test) <- u_batch
+no.zero <- lapply(test, function(x) apply(x, 2, function(y) y[which(y > 0)]))
+plot.grouped.boxes(test, type = "matrix", plot.type = "strip")
+plot.grouped.boxes(no.zero, plot.type = "strip")
+```
+
+## LOD heat maps
+
+It is easier to compare QTL heights and positions if 
+we can put all the traces on a single plot. The 
+following figures show multiple scans in one panel
+so we can compare them more easily.
+
+The following heatmap shows LOD scores across all 
+traits mapped with individuals.
+
+```{r lod_thresh}
+lod.thresh <- 2
+```
+
+Only LOD scores greater than `r lod.thresh` are shown.
+
+```{r, multilod_ind, fig.width = 10, fig.height = 2.5, warning = FALSE, message = FALSE}
+multilod.plot(pheno.scans, map = map, lod.thresh = lod.thresh, row.name.shift = -2000, 
+    use.pheatmap.colors = TRUE, border.col = "black", border.lwd = 1, legend.height = 6)
+```
+
+
+
+## Sex effects and strain means
+
+For now I am removing the mapping using sex as an interactive 
+covariate. Sex does not have a significant effect on these 
+traits overall, and I'm concerned that a strain imbalance 
+in a sex effect (random or otherwise) is inflating the LOD 
+scores (see excised code).
+
+I am also removing the mapping with strain means. The variance
+within each strain is so high that I think mapping with strain 
+means is misleading at best. 
