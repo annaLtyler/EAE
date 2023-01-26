@@ -44,7 +44,7 @@ library(here)
 all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
 for(i in 1:length(all.fun)){source(all.fun[i])}
 
-overwrite_previous = TRUE
+overwrite_previous = FALSE
 add_founder_genotypes = FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
@@ -1151,8 +1151,9 @@ allele_coef <- function(map.geno, map.pheno, map.k, scan.results,
                         kinship = map.k[[chr.locale]])
                     chr.coef[[idx]] <- effects.scan
                     #plot_coefCC(effects.scan, map = map);abline(v = peak.loc)
+                    idx = idx + 1 #increment regardless of whether there is a peak here
                 }
-                idx = idx + 1 #increment regardless of whether there is a peak here
+                
             }
         }
         saveRDS(chr.lod, chr.lod.file)
@@ -1255,6 +1256,21 @@ plot_coef_scans(coef.results = severity.coef,
 #dev.off()
 ```
 
+### LOD intervals
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r lod_peaks}
+top.n <- 3
+for(ph in 1:length(severity.scans)){
+    peak.table <- find_peaks(severity.scans[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    print(kable(peak.table[lod.order[1:top.n],]))
+}
+```
+
 ## Map Severity by Strain Average {.tabset .tabset-fade .tabset-pills}
 
 We also used strain averages to map severity.
@@ -1293,6 +1309,41 @@ fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans, severity.avg.perm,
     tab.level = "###")
 #dev.off()
 ```
+
+### Allele Effects
+
+```{r scan_coef_by_strain, fig.width = 7, fig.height = 7, results = "asis"}
+
+severity.coef.avg <- allele_coef(map.geno = mean.genoprobs, 
+    map.pheno = mean.pheno, map.k = mean.K, scan.results = severity.avg.scans,
+    lod.threshold = allele.thresh, split.model = FALSE, 
+    chr.lod.file = here("Results", "Chr.LOD.Severity.Avg.RDS"), 
+    chr.coef.file = here("Results", "Chr.Coef.Severity.Avg.RDS"))
+
+#pdf("~/Desktop/test.pdf", width = 7, height = 7)
+plot_coef_scans(coef.results = severity.coef.avg, 
+    map.geno = mean.genoprobs, map.pheno = mean.pheno, 
+    fdr_results = fdr_summaries_sev_avg, tab.level = "####",
+    sig_lines = "Genome-wide")
+
+#dev.off()
+```
+
+### LOD intervals
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r lod_peaks}
+top.n <- 3
+for(ph in 1:length(severity.scans)){
+    peak.table <- find_peaks(severity.avg.scans[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    print(kable(peak.table[lod.order[1:top.n],]))
+}
+```
+
 
 ## Map Severity by Strain Average with Sex as Interacting Covariate {.tabset .tabset-fade .tabset-pills}
 
