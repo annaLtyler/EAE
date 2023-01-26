@@ -1365,7 +1365,7 @@ fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans.sex, severity.avg.perm.
 The following plots show the LOD traces for the strain averages of 
 severity with sex as an interactive covariate and the significance thresholds.
 
-```{r strain_avg_plots_sex, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
+```{r strain_avg_plots_sex_int, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
 #pdf("~/Desktop/test.pdf")
 fdr_summaries_sev_avg_int <- plot_fdr_fun(severity.avg.scans.sex.int, 
     severity.avg.perm.sex.int, tab.level = "###")
