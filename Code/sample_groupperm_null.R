@@ -44,6 +44,11 @@ sample_groupperm_null = function(genoprobs, pheno, groups,
         null_kin <- NULL
     }
 
+    #make rownames match across everything
+    rownames(pheno) <- 1:nrow(pheno)
+    if(!is.null(addcovar)){rownames(addcovar) <- 1:nrow(addcovar)}
+    if(!is.null(intcovar)){rownames(intcovar) <- 1:nrow(intcovar)}
+
   scan1_null = scan1(null_geno, pheno, kinship = null_kin, addcovar = addcovar, 
     intcovar = intcovar, cores = cores)
   #plot(scan1_null, map = map)
