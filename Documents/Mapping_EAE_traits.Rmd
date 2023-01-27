@@ -57,7 +57,7 @@ split.model = TRUE #if true, we look fit two models, one to severity
                     #and one to incidence.
 disease.thresh = 0 #maximum disease score considered disease-free
 
-nperm = 10000
+nperm = 100
 ```
 
 ```{r load_libraries, warning = FALSE}
