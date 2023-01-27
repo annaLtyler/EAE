@@ -44,7 +44,7 @@ library(here)
 all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
 for(i in 1:length(all.fun)){source(all.fun[i])}
 
-overwrite_previous = FALSE
+overwrite_previous = TRUE
 add_founder_genotypes = FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
