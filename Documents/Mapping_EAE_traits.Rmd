@@ -1335,9 +1335,9 @@ The following tables show LOD peak intervals for the top 3 peaks from
 each trait.
 
 
-```{r lod_peaks}
+```{r lod_peaks_avg}
 top.n <- 3
-for(ph in 1:length(severity.scans)){
+for(ph in 1:length(severity.avg.scans)){
     peak.table <- find_peaks(severity.avg.scans[[ph]], map = map, prob = 0.95)
     lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
     print(kable(peak.table[lod.order[1:top.n],]))
