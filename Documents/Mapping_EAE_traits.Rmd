@@ -57,7 +57,7 @@ split.model = TRUE #if true, we look fit two models, one to severity
                     #and one to incidence.
 disease.thresh = 0 #maximum disease score considered disease-free
 
-nperm = 100
+nperm = 1000
 ```
 
 ```{r load_libraries, warning = FALSE}
@@ -1188,7 +1188,9 @@ plot_coef_scans <- function(coef.results, map.geno, map.pheno, fdr_results,
                 
                 cat(tab.level, trait, "Chr", chr, "\n")
 
-                plot(chr.lod[[idx]], map = map, main = paste(trait, "Chr", chr))
+                ymax <- max(c(chr.lod[[idx]], fdr_results[ph,line.idx]))
+                plot(chr.lod[[idx]], map = map, main = paste(trait, "Chr", chr), 
+                    ylim = c(0, ymax*1.05))
                 abline(h = fdr_results[ph,line.idx])
                 plot.dim <- par("usr")
                 par(xpd = TRUE)
@@ -1262,12 +1264,14 @@ The following tables show LOD peak intervals for the top 3 peaks from
 each trait.
 
 
-```{r lod_peaks}
+```{r lod_peaks, results = "asis"}
 top.n <- 3
 for(ph in 1:length(severity.scans)){
+    cat(names(severity.scans)[ph], "\n")
     peak.table <- find_peaks(severity.scans[[ph]], map = map, prob = 0.95)
     lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
     print(kable(peak.table[lod.order[1:top.n],]))
+    cat("\n\n")
 }
 ```
 
@@ -1310,7 +1314,7 @@ fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans, severity.avg.perm,
 #dev.off()
 ```
 
-### Allele Effects
+## Strain Average Allele Effects {.tabset .tabset-fade .tabset-pills}
 
 ```{r scan_coef_by_strain, fig.width = 7, fig.height = 7, results = "asis"}
 
@@ -1323,29 +1327,31 @@ severity.coef.avg <- allele_coef(map.geno = mean.genoprobs,
 #pdf("~/Desktop/test.pdf", width = 7, height = 7)
 plot_coef_scans(coef.results = severity.coef.avg, 
     map.geno = mean.genoprobs, map.pheno = mean.pheno, 
-    fdr_results = fdr_summaries_sev_avg, tab.level = "####",
+    fdr_results = fdr_summaries_sev_avg, tab.level = "###",
     sig_lines = "Genome-wide")
 
 #dev.off()
 ```
 
-### LOD intervals
+## Strain Average LOD intervals 
 
 The following tables show LOD peak intervals for the top 3 peaks from 
 each trait.
 
 
-```{r lod_peaks_avg}
+```{r lod_peaks_avg, results = "asis"}
 top.n <- 3
 for(ph in 1:length(severity.avg.scans)){
+    cat(names(severity.avg.scans)[ph], "\n")
     peak.table <- find_peaks(severity.avg.scans[[ph]], map = map, prob = 0.95)
     lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
     print(kable(peak.table[lod.order[1:top.n],]))
+    cat("\n\n")
 }
 ```
 
 
-## Map Severity by Strain Average with Sex as Interacting Covariate {.tabset .tabset-fade .tabset-pills}
+## Map Severity by Strain Average with Sex as Interacting Covariate
 
 We also used sex as an interacting covariate when
 mapping severity.
@@ -1401,17 +1407,21 @@ severity.avg.perm.sex.int <- perm_scans(mean.genoprobs.sex, mean.pheno.sex, mean
 
 ```
 
+### Sex as additive {.tabset .tabset-fade .tabset-pills}
+
 The following plots show the LOD traces for the strain averages of 
 severity with sex as an additive covariate and the significance 
 thresholds.
 
+
 ```{r strain_avg_plots_sex, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
 #pdf("~/Desktop/test.pdf")
 fdr_summaries_sev_avg <- plot_fdr_fun(severity.avg.scans.sex, severity.avg.perm.sex,
-    tab.level = "###")
+    tab.level = "####")
 #dev.off()
 ```
 
+### Sex as interactive {.tabset .tabset-fade .tabset-pills}
 
 The following plots show the LOD traces for the strain averages of 
 severity with sex as an interactive covariate and the significance thresholds.
@@ -1419,16 +1429,19 @@ severity with sex as an interactive covariate and the significance thresholds.
 ```{r strain_avg_plots_sex_int, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
 #pdf("~/Desktop/test.pdf")
 fdr_summaries_sev_avg_int <- plot_fdr_fun(severity.avg.scans.sex.int, 
-    severity.avg.perm.sex.int, tab.level = "###")
+    severity.avg.perm.sex.int, tab.level = "####")
 #dev.off()
 ```
+
+### Interactive and Additive Together
 
 The following plots show the two LOD traces plotted on the same
 plot with significance thresholds.
 
 ```{r plot_with_sig, fig.width = 9, fig.height = 5}
 for(i in 1:length(severity.avg.scans.sex)){
-    plot(severity.avg.scans.sex.int[[i]], map = map, col = "red")
+    plot(severity.avg.scans.sex.int[[i]], map = map, col = "red", 
+        main = names(severity.avg.scans.sex)[i])
     abline(h = fdr_summaries_sev_avg_int[i,1:2], lty = 1:2, col = "red")
     plot(severity.avg.scans.sex[[i]], map = map, add = TRUE)
     abline(h = fdr_summaries_sev_avg[i,1:2], lty = 1:2, col = "darkblue")
@@ -1491,3 +1504,5 @@ var.perm <- perm_scans(mean.genoprobs, strain.var, mean.K,
 fdr_summaries_var <- plot_fdr_fun(var.scan, var.perm)
 #dev.off()
 ```
+
+## References
