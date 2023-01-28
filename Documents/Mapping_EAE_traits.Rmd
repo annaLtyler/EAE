@@ -316,7 +316,7 @@ cds.by.batch <- function(strain.names, batch.num = c(1:4),
         batch.idx <- which(cds.covar[,batch.num[i]] == 1)
         strain.batch <- intersect(batch.idx, strain.idx)
         if(!split.model){
-            batch.cds <- num.cds[strain.batch,,drop=FALSE]
+            batch.cds <- lapply(1:ncol(num.cds), function(x) num.cds[strain.batch,x])
         }else{
             temp.cds  <- num.cds[strain.batch,,drop=FALSE]
             non.zero.idx <- lapply(1:ncol(temp.cds), 
@@ -327,10 +327,10 @@ cds.by.batch <- function(strain.names, batch.num = c(1:4),
     }
     if(!split.model){
         if(plot.results){
-            plot.grouped.boxes(strain.by.batch, type = "matrix", notch = TRUE, 
+            plot.grouped.boxes(strain.by.batch, type = "list", notch = FALSE, 
                 main = plot.label, plot.type = plot.type)
         }
-        incidence <- sapply(strain.by.batch, function(x) apply(x, 2, function(y) length(which(y != 0))/length(y)))
+        incidence <- sapply(strain.by.batch, function(x) sapply(x, function(y) length(which(y != 0))/length(y)))
         result <- list(strain.by.batch, incidence)
         names(result) <- c("batch.cds", "incidence")
 
@@ -366,6 +366,7 @@ and the pink stars show the mean deviation for each
 batch.
 
 ```{r batches_by_strain, results = "asis", fig.width = 8, fig.height = 8}
+
 batch.deviation <- vector(mode = "list", length = ncol(num.cds))
 for(b in 1:length(batch.deviation)){
     batch.deviation[[b]] <- matrix(NA, nrow = length(u_strain), ncol = length(u_batch))
@@ -383,7 +384,7 @@ for(st in 1:length(u_strain)){
     if(length(batches.present) > 1){
         test <- cds.by.batch(u_strain[st], batch.num = batches.present, 
             split.model = split.model, plot.results = FALSE)
-        batch.means <- sapply(test, function(x) sapply(x, mean))
+        batch.means <- sapply(test[[1]], function(x) sapply(x, mean))
         for(cd in 1:length(batch.deviation)){
             batch.deviation[[cd]][st, batches.present] <- batch.means[cd,] - strain.means[cd]
         }
