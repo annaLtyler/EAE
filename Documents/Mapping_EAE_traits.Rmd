@@ -57,7 +57,7 @@ split.model = FALSE #if true, we look fit two models, one to severity
                     #and one to incidence.
 disease.thresh = 0 #maximum disease score considered disease-free
 
-nperm = 1000
+nperm = 100
 ```
 
 ```{r load_libraries, warning = FALSE}
@@ -1041,7 +1041,7 @@ map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
 }
 
 perm_scans <- function(map.geno, map.pheno, map.k, scan1.results, 
-    addcovar = NULL, intcovar = NULL, groups = NULL, nperm = 100, 
+    addcovar = NULL, intcovar = NULL, groups = NULL, nperm = nperm, 
     max.exp.lod = 20, n.founders = 8, split.model = TRUE, 
     results.file = here("Results", "perm.RDS")){
 
