@@ -53,7 +53,7 @@ remove_strains <- NULL
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
 
-split.model = TRUE #if true, we look fit two models, one to severity
+split.model = FALSE #if true, we look fit two models, one to severity
                     #and one to incidence.
 disease.thresh = 0 #maximum disease score considered disease-free
 
@@ -82,7 +82,9 @@ cds <- read.csv(here("Data", "CDS.csv"), strip.white = TRUE)
 num.cds <- as.matrix(cds[,c("Classical.CDS", "AR.CDS", "Global.CDS")])
 #set all scores equal to or lower than the disease threshold
 #to zero
-num.cds[which(num.cds <= disease.thresh)] <- 0
+if(split.model){
+    num.cds[which(num.cds <= disease.thresh)] <- 0
+}
 
 factor.cds <- as.matrix(cds[,c("Strain", "Sex")])
 u_batch <- unique(cds[,"EXP"])
