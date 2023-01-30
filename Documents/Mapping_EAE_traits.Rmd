@@ -44,7 +44,7 @@ library(here)
 all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
 for(i in 1:length(all.fun)){source(all.fun[i])}
 
-overwrite_previous = TRUE
+overwrite_previous = FALSE
 add_founder_genotypes = FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
@@ -1405,8 +1405,9 @@ severity.avg.perm.sex <- perm_scans(map.geno = mean.genoprobs.sex,
     groups = perm.groups, split.model = FALSE, nperm = nperm, 
     results.file = here("Results", "scan1perm_results_severity_avg_sex.RDS"))
 
-severity.avg.perm.sex.int <- perm_scans(mean.genoprobs.sex, mean.pheno.sex, mean.K.sex,
-    severity.avg.scans.sex, addcovar = covar.sex, intcovar = covar.sex,
+severity.avg.perm.sex.int <- perm_scans(map.geno = mean.genoprobs.sex, 
+    map.pheno = mean.pheno.sex, map.k = mean.K.sex, max.exp.lod = 40,
+    scan1.results = severity.avg.scans.sex, addcovar = covar.sex, intcovar = covar.sex,
     groups = perm.groups, split.model = FALSE, nperm = nperm,
     results.file = here("Results", "scan1perm_results_severity_avg_sex_int.RDS"))
 
