@@ -1065,11 +1065,13 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
                     groups = groups[nonzero.idx],
                     kinship = map.k, nperm = nperm, breaks = breaks, 
+                    addcovar = addcovar, intcovar = intcovar,
                     scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = cores)
             }else{
                 null_stats = scan1perm_stats(map.geno, 
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
-                    kinship = map.k, nperm = nperm, breaks = breaks, 
+                    kinship = map.k, nperm = nperm, breaks = breaks,
+                    addcovar = addcovar, intcovar = intcovar,
                     scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = cores)
             }
             perm.data[[ph]] <- null_stats
