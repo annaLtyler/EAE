@@ -261,3 +261,148 @@ scores (see excised code).
 I am also removing the mapping with strain means. The variance
 within each strain is so high that I think mapping with strain 
 means is misleading at best. 
+
+### Original batch correction procedure
+
+Only CC002 mice were represented in all batches.
+
+The strains are unevenly distributed across
+the batches. We need to correct for any batch 
+effects without unwitingly introducing any 
+strain effects that could lead to false positive
+QTL. 
+
+Conversely, we don't want to leave in any
+false positive genetic effects by not correcting
+for any batch effects that are non-randomly 
+distributed across strains.
+
+The only way we can look for batch effects without
+introducing strain effects is to look within a given
+strain. However, we also want to look for systematic
+trends across the full experiment. 
+
+What we have done is the following:
+    
+1. for each strain calculate the overall mean
+   for each phenotype (here we use CDS: non-zero values).
+2. calculate the mean CDS in each batch
+    that the strain is represented in. 
+3. subtract the overall mean from the batch means
+    to see whether the mean in each batch is above
+    the overall strain mean, or below
+4. repeat across all strains to see if there are 
+    systematic biases across the different batches
+5. subtract the aggregated mean deviation across
+    all strains from the original CDS and divide
+    by the standard divation.
+
+```{r plot_batch_fun}
+batch.col <- categorical_pal(8)[c(2,3,7,8)]
+cds.by.batch <- function(strain.names, batch.num = c(1:4), 
+    plot.type = c("box", "strip"), plot.label = "", 
+    exclude.zeros = FALSE, plot.results = TRUE){
+    
+    plot.type = plot.type[1]
+    strain.idx <- which(factor.cds[,"Strain"] %in% strain.names)
+    strain.by.batch <- vector(mode = "list", length = length(batch.num))
+    names(strain.by.batch) <- colnames(cds.covar)[1:length(batch.num)]
+    
+    for(i in 1:length(batch.num)){
+        batch.idx <- which(cds.covar[,batch.num[i]] == 1)
+        strain.batch <- intersect(batch.idx, strain.idx)
+        if(!exclude.zeros){
+            batch.cds <- lapply(1:ncol(num.cds), function(x) num.cds[strain.batch,x])
+        }else{
+            temp.cds  <- num.cds[strain.batch,,drop=FALSE]
+            non.zero.idx <- lapply(1:ncol(temp.cds), 
+                function(x) which(temp.cds[,x] != 0))
+            batch.cds <- lapply(1:ncol(temp.cds), function(x) temp.cds[non.zero.idx[[x]],x])
+        }
+        strain.by.batch[[i]] <- batch.cds
+    }
+    if(!exclude.zeros){
+        if(plot.results){
+            plot.grouped.boxes(strain.by.batch, type = "list", notch = FALSE, 
+                main = plot.label, plot.type = plot.type)
+        }
+        incidence <- sapply(strain.by.batch, function(x) sapply(x, function(y) length(which(y != 0))/length(y)))
+        result <- list(strain.by.batch, incidence)
+        names(result) <- c("batch.cds", "incidence")
+
+        if(plot.results){
+            layout(matrix(c(1,2), ncol = 2), widths = c(1,0.35))
+            par(mar = c(4,4,4,0))
+            barplot(t(incidence), beside = TRUE, col = batch.col, 
+                main = paste(plot.label, "incidence"),
+                ylab = "incidence")
+            par(mar = c(4,0,4,2))
+            plot.new()
+            plot.window(xlim = c(0,1), ylim = c(0,1))
+            legend(x = 0, y = 0.5, legend = colnames(incidence), fill = batch.col, adj = 0)
+        }
+    }else{
+        if(plot.results){
+            plot.grouped.boxes(strain.by.batch, notch = TRUE, 
+                main = paste(plot.label, ": zeros removed"), plot.type = plot.type)
+        }
+        result <- strain.by.batch
+    }
+
+    invisible(result)
+}
+```
+
+### Batch deviation from mean plots
+
+The following boxplots show the deviation from the strain
+mean that we see across all batches for each trait. 
+Green circles show deviations in individual animals,
+and the pink stars show the mean deviation for each
+batch.
+
+```{r batches_by_strain, results = "asis", fig.width = 8, fig.height = 8}
+
+batch.deviation <- vector(mode = "list", length = ncol(num.cds))
+for(b in 1:length(batch.deviation)){
+    batch.deviation[[b]] <- matrix(NA, nrow = length(u_strain), ncol = length(u_batch))
+    rownames(batch.deviation[[b]]) <- u_strain
+    colnames(batch.deviation[[b]]) <- u_batch
+}
+strain.test <- vector(mode = "list", length = length(u_strain))
+names(strain.test) <- u_strain
+for(st in 1:length(u_strain)){
+    batches.present <- which(merged.batch[st,] != 0)
+    #strain.means <- colMeans(num.cds[which(factor.cds[,"Strain"] == u_strain[st]),])
+    #mean of cds only (no 0's)
+    strain.idx <- which(factor.cds[,"Strain"] == u_strain[st])
+    strain.means <- apply(num.cds[strain.idx,], 2, function(x) mean(x[which(x != 0)]))
+    if(length(batches.present) > 1){
+        test <- cds.by.batch(u_strain[st], batch.num = batches.present, 
+            exclude.zeros = exclude.zeros, plot.results = FALSE)
+        batch.means <- sapply(test[[1]], function(x) sapply(x, mean))
+        for(cd in 1:length(batch.deviation)){
+            batch.deviation[[cd]][st, batches.present] <- batch.means[cd,] - strain.means[cd]
+        }
+    }
+}
+
+par(mfrow = c(2,2))
+for(i in 1:length(batch.deviation)){
+    boxplot(batch.deviation[[i]], main = colnames(num.cds)[i], 
+        ylab = "Deviation from Strain Mean")
+    abline(h = 0)
+    stripchart(lapply(1:ncol(batch.deviation[[i]]), function(x) batch.deviation[[i]][,x]), 
+        vertical = TRUE, pch = 16, col = batch.col[2], method = "jitter", add = TRUE)
+    points(1:length(u_batch), y = colMeans(batch.deviation[[i]], na.rm = TRUE), 
+        col = batch.col[3], pch = "*", cex = 2)
+}
+```
+
+The batches actually look fairly good using this method.
+We also see some evidence for systematic variation. The
+variance in the third batch is also much higher than the
+other batches. Although, because the variance is pretty
+high overall and the n in each group is fairly low, it 
+is hard to tell if these are systematic issues or just 
+random chance.
