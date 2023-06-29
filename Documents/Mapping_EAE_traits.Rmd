@@ -1550,18 +1550,18 @@ plot with significance thresholds.
 for(i in 1:length(cds.avg.scans.sex.int)){
     cat("####", names(cds.avg.scans.sex.int)[i],  "\n")
     if(run_permutations){
-        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), fdr_summaries_sev_avg_int[i,1:2])*1.05
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), cds.avg.perm.sex[i,1:2])*1.05
     }else{
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]))*1.05
     }
     plot(cds.avg.scans.sex.int[[i]], map = map, col = "red", 
         main = names(cds.avg.scans.sex.add)[i], ylim = c(0, ymax))
     if(run_permutations){
-        abline(h = fdr_summaries_sev_avg_int[i,1:2], lty = 1:2, col = "red")
+        abline(h = cds.avg.perm.sex[i,1:2], lty = 1:2, col = "red")
     }
     plot(cds.avg.scans.sex.add[[i]], map = map, add = TRUE)
     if(run_permutations){
-        abline(h = fdr_summaries_sev_avg[i,1:2], lty = 1:2, col = "darkblue")
+        abline(h = cds.avg.perm.sex[i,1:2], lty = 1:2, col = "darkblue")
     }
     cat("\n\n")
 }
