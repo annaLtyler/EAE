@@ -1560,7 +1560,7 @@ for(i in 1:length(cds.avg.scans.sex.int)){
         sig.levels.add <- fdr_summarize(cds.avg.perm.sex[[i]], fdr_cl = 0.95, 
             geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
-        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), sig.levels[1])*1.05
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), sig.levels.add[1], sig.levels.int[1])*1.05
     }
     if(!run_permutations || !is.finite(ymax)){
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]))*1.05
