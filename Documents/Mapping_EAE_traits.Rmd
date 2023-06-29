@@ -1530,7 +1530,7 @@ cds.avg.scans.sex.int <- map_pheno(mean.genoprobs, norm.mean.pheno, mean.K,
 
 if(run_permutations){
     perm.groups <- strain.by.sex[,1]
-    cds.avg.perm.sex <- perm_scans(map.geno = mean.genoprobs, 
+    cds.avg.perm.sex.add <- perm_scans(map.geno = mean.genoprobs, 
         map.pheno = norm.mean.pheno, map.k = mean.K,
         scan1.results = cds.avg.scans.sex.add, addcovar = mean.covar, 
         groups = perm.groups, exclude.zeros = FALSE, nperm = nperm, 
@@ -1557,7 +1557,7 @@ for(i in 1:length(cds.avg.scans.sex.int)){
         sig.levels.int <- fdr_summarize(cds.avg.perm.sex.int[[i]], fdr_cl = 0.95, 
             geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
-        sig.levels.add <- fdr_summarize(cds.avg.perm.sex[[i]], fdr_cl = 0.95, 
+        sig.levels.add <- fdr_summarize(cds.avg.perm.sex.add[[i]], fdr_cl = 0.95, 
             geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), sig.levels.add[1], sig.levels.int[1])*1.05
