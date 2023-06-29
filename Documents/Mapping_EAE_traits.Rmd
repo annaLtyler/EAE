@@ -57,9 +57,9 @@ b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
 batch_as_covar <- as.logical(args[2]) #use batch as a covariate
 rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
 
-#b6_correction <- FALSE
-#batch_as_covar <- TRUE
-#rank_norm <- TRUE
+b6_correction <- FALSE
+batch_as_covar <- TRUE
+rank_norm <- TRUE
 
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
@@ -1678,6 +1678,12 @@ rownames(inc.by.sex) <- paste(incidence.strains,
 incidence.covar <- matrix(1, ncol = 1, nrow = nrow(inc.by.sex))
 incidence.covar[1:nrow(incidence$incidence_female)] <- 0
 rownames(incidence.covar) <- rownames(inc.by.sex)
+```
+
+```{r no_perm}
+#set run_permutations to FALSE
+#we are not ready to run permutations on incidence yet
+run_permutations = FALSE
 ```
 
 ```{r map_overall_inc, warning = FALSE}
