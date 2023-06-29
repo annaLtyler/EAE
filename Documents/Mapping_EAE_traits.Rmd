@@ -1568,7 +1568,7 @@ for(i in 1:length(cds.avg.scans.sex.int)){
     plot(cds.avg.scans.sex.int[[i]], map = map, col = "red", 
         main = names(cds.avg.scans.sex.add)[i], ylim = c(0, ymax))
     if(run_permutations){
-        abline(h = sig.levels, lty = 1:2, col = "red")
+        abline(h = sig.levels.int, lty = 1:2, col = "red")
     }
     plot(cds.avg.scans.sex.add[[i]], map = map, add = TRUE)
     if(run_permutations){
