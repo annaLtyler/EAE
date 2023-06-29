@@ -91,7 +91,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "April_2023" #date for incidence csv files to use in format month_year
 
-nperm = 100
+nperm = 1000
 ```
 
 ## Parameters
