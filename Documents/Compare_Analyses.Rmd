@@ -1,0 +1,338 @@
+---
+title: "Compare Analyses"
+author: Anna L Tyler
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+    collapsed: no
+    toc: yes
+    toc_float: yes
+bibliography: eae.bib
+---
+
+This workflow compares results from analyses using different
+normalization and batch correction procedures.
+
+```{r libraries}
+library(qtl2)
+library(here)
+library(RColorBrewer)
+```
+
+```{r load_code}
+all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
+for(i in 1:length(all.fun)){source(all.fun[i])}
+```
+
+## Corrected CDS vs. Raw
+
+We first check the normalized CDS values against the
+raw CDS values. We check to observe the effects of 
+our adjustment and normalization procedures.
+
+We adjusted either using the B6 CDS values in each batch, 
+or by regressing out batch as a binary variable. The B6 
+batch correction assumes that the B6 mice will have the same 
+disease course under the same experimental conditions. If 
+the B6 animals have a particularly high disease score in one 
+batch, we assume that this is because the experimental 
+conditions cause more disease overall. Any animals paired 
+with the B6 animals in this batch, will have their disease 
+scores reduced. We adjust all batches so that the B6 animals 
+have the same mean and standard deviation across all batches. 
+
+The covariate batch correction assumes that the disease
+mean is the same across all batches because all other
+variables are held constant. Any batch with a higher 
+disease mean will be reduced so that its mean matches 
+the other batches. The problem with this method for 
+these data is that if different strains are tested in 
+different batches, and the different strains have truly 
+different means in disease scores, this batch correction 
+will wipe out the difference between the means.
+
+To illustrate the difference between these methods, lets
+consider CC020, which was run in a batch all on its own
+with B6 controls. The B6 animals in this batch had a 
+higher disease score than B6 animals in previous batches.
+The CC020 animals were very resistant to disease. 
+
+If we use the B6-based correction and assume that B6 
+has the same disease severity across all batches, and
+in this batch it had high disease severity, we will adjust
+the disease severity of both B6 and CC020 *down* to match 
+the B6 animals in the other batches. Thus we will 
+conclude that CC020 animals are very highly resistant
+to EAE. If on the other hand, we use batch as a 
+covariate and assume that disease score should be
+the same across all batches, we will adjust the CC020
+disease score *up* to match the mean of the other batches,
+and CC020 will have a mean disease score comparable to 
+the other animals. The two types of corrections potentially
+give us very different results. It we think that CC020
+is actually quite resistant, the B6-based correction 
+is the better correction. However, including the B6 animals
+in the covariate-based correction will also guard against 
+assigning CC020 animals a mean disease score. Because the B6
+animals in this batch had a very high disease score, they will
+bring the mean of the whole batch up, potentially allowing us 
+to keep the CC020 CDS values relatively low.
+
+```{r param}
+cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
+```
+
+```{r cds}
+cds <- read.csv(here("Data", paste0("CDS_", cds.file.date, ".csv")), strip.white = TRUE)
+raw.cds <- as.matrix(cds[,c("Classical.CDS", "AR.CDS", "Global.CDS")])
+
+results.dir <- list.files(here("Results"), pattern = "Zero", full.names = TRUE)
+norm.cds <- lapply(results.dir, function(x) read.csv(file.path(x, "Norm_CDS.csv")))
+adj.cds <- lapply(results.dir, function(x) read.csv(file.path(x, "Adj_CDS.csv")))
+analysis.names <- gsub("Zeros_included_", "", basename(results.dir))
+```
+
+### Adjusted {.tabset .tabset-fade .tabset-pills}
+
+The following plots show the raw CDS values compared to
+the adjusted values from each experiment. 
+
+The points in the plots below each represent an individual 
+mouse. The color of each point indicates the experiment it 
+was run in. 
+
+The panel showing no batch correction still has an adjustment
+for age, which was different in each of the batches. The age
+adjustment brings the batches 126 and 191 down relative to 
+where they were in the original data. These batches had
+the highest Age.at.D0 and the highest overall CDS.
+
+The other two corrections have similar effects, except
+that the B6-based correction really brings down the scores
+of the animals in batch 191.
+
+```{r raw_v_adj, fig.width = 8, fig.height = 4, results = "asis"}
+correction.type <- sapply(strsplit(analysis.names, "_"), function(x) x[1])
+u_type <- unique(correction.type)
+type.idx <- match(u_type, correction.type)
+
+common.ind <- intersect(rownames(norm.cds[[1]]), cds[,"ID"])
+adj.idx <- match(common.ind, rownames(adj.cds[[1]]))
+raw.idx <- match(common.ind, cds[,"ID"])
+batch.col <- as.numeric(as.factor(cds[,"EXP"]))
+for(i in 1:ncol(raw.cds)){
+    cat("####", colnames(raw.cds)[i], "\n")
+    #take one column from each adjustment paradigm. The
+    #normalization hasn't been done at this point in the process,
+    #so we can ignore it.
+    adj.mat <- sapply(adj.cds, function(x) x[adj.idx,i])[,type.idx] 
+    colnames(adj.mat) <- sapply(strsplit(analysis.names[type.idx], "_"), function(x) x[1])
+    comp.cds <- raw.cds[raw.idx,i]
+    par(mfrow = c(1,2))
+    for(j in 1:ncol(adj.mat)){
+        plot(comp.cds, adj.mat[,j], xlab = "Raw", ylab = "Adjusted", 
+        main = colnames(adj.mat)[j], col = batch.col[raw.idx], pch = 16)
+        legend("bottomright", col = 1:length(unique(batch.col[raw.idx])), 
+            legend = unique(cds[raw.idx,"EXP"]), pch = 16)
+    }
+    #mtext(colnames(raw.cds)[i], side = 3, outer = TRUE, line = -2, font = 2)
+    cat("\n\n")
+}
+
+```
+
+### Strain Order for Adjusted Values {.tabset .tabset-fade .tabset-pills}
+
+We looked at the order of the strain means relative to 
+the measured order after the adjustment.
+
+```{r strain_order_adj, results = "asis", fig.width = 9, fig.height = 3}
+strain <- cds[,"Strain"]
+u_strain <- unique(strain)
+strain_ind <- lapply(u_strain, function(x) cds[which(strain == x),"ID"])
+orig_strain_cds <- lapply(strain_ind, 
+    function(x) cds[match(x, cds[,"ID"]), c("Classical.CDS", "AR.CDS", "Global.CDS")])
+orig_strain_mean <- t(sapply(orig_strain_cds, function(x) colMeans(x, na.rm = TRUE)))
+rownames(orig_strain_mean) <- u_strain
+
+for(exp in type.idx){
+    cat("####", correction.type[exp], "\n")
+    adj_strain_cds <- lapply(strain_ind, 
+        function(x) adj.cds[[exp]][match(x, cds[,"ID"]), c("Classical.CDS", "AR.CDS", "Global.CDS")])
+    adj_strain_mean <- t(sapply(adj_strain_cds, function(x) colMeans(x, na.rm = TRUE)))
+    par(mfrow = c(1,3))
+    for(cd in 1:ncol(adj_strain_mean)){
+        plot.with.model(orig_strain_mean[,cd], adj_strain_mean[,cd], pch = 16, 
+            xlab = "Original Strain Mean", ylab = "Adjusted Strain Mean",
+            main = colnames(adj_strain_mean)[cd])
+    }
+    cat("\n\n")
+}
+```
+
+### Normalized {.tabset .tabset-fade .tabset-pills}
+
+The following plots show the raw CDS values compared to
+the normalized values from each experiment. Again, each
+point represents one individual, and the points are colored
+based on the experiment they were in.
+
+The primary effect of the normalization is to exaggerate 
+differences in the mice with the lowest scores. 
+The normalization appears to reduce the effects of the 
+B6 batch correction, but there is still an exaggerated
+difference among individuals at the bottom of the distribution. 
+
+```{r raw_v_norm, fig.width = 8, fig.height = 8, results = "asis"}
+common.ind <- intersect(rownames(norm.cds[[1]]), cds[,"ID"])
+norm.idx <- match(common.ind, rownames(norm.cds[[1]]))
+raw.idx <- match(common.ind, cds[,"ID"])
+for(i in 1:ncol(raw.cds)){
+    cat("####", colnames(raw.cds)[i], "\n")
+    norm.mat <- sapply(norm.cds, function(x) x[norm.idx,i])
+    comp.cds <- raw.cds[raw.idx,i]
+    par(mfrow = c(2,2))
+    for(j in 1:ncol(norm.mat)){
+        plot(comp.cds, norm.mat[,j], xlab = "Raw", ylab = "Normalized", 
+        main = analysis.names[j], col = batch.col[raw.idx],
+        pch = 16)
+        legend("topleft", col = 1:length(unique(batch.col[raw.idx])), 
+            legend = unique(cds[raw.idx,"EXP"]), pch = 16)
+
+    }
+    #mtext(colnames(raw.cds)[i], side = 3, outer = TRUE, line = -2, font = 2)
+    cat("\n\n")
+}
+
+```
+
+### Strain Order for Normalized Values {.tabset .tabset-fade .tabset-pills}
+
+We looked at the order of the strain means relative to 
+the measured order after the normalization.
+
+```{r strain_order_norm, results = "asis", fig.width = 9, fig.height = 3}
+
+for(exp in 1:length(analysis.names)){
+    cat("####", analysis.names[exp], "\n")
+    norm_strain_cds <- lapply(strain_ind, 
+        function(x) norm.cds[[exp]][match(x, cds[,"ID"]), c("Classical", "AR", "Global")])
+    norm_strain_mean <- t(sapply(norm_strain_cds, function(x) colMeans(x, na.rm = TRUE)))
+    par(mfrow = c(1,3))
+    for(cd in 1:ncol(adj_strain_mean)){
+        plot.with.model(orig_strain_mean[,cd], norm_strain_mean[,cd], pch = 16, 
+            xlab = "Original Strain Mean", ylab = "Normalized Strain Mean",
+            main = colnames(norm_strain_mean)[cd])
+    }
+    cat("\n\n")
+}
+```
+
+## QTL Positions {.tabset .tabset-fade .tabset-pills}
+
+The various adjustment and normalization procedures cause
+variation in the final values that are mapped. How does 
+this variation affect the QTLs that are identified?
+
+The following plots compare LOD scores from the different
+normalization pipelines. LOD scores are only compared
+where one of the methods resulted in a LOD score of 5 or 
+higher. These high LOD scores were seen almost exclusively
+in the B6-based batch correction with no normalization. 
+If you look at the LOD traces for this run, however,
+the traces look a bit suspicious. Very spiky. So I don't
+think that these higher LOD scores necessarily indicate 
+cleaner mapping. 
+
+
+```{r read_scans}
+lod.thresh <- 5
+qtl.scans <- lapply(results.dir, function(x) readRDS(file.path(x, "scan1_results_cds.RDS")))
+map <- readRDS(here("Data", "map.RDS"))
+```
+
+```{r plot_scans, results = "asis", fig.width = 8, fig.height = 4}
+paired.cols <- brewer.pal(6, "Paired")
+for(i in 1:ncol(raw.cds)){
+    cat("###", colnames(raw.cds)[i], "\n")
+    peak.mat <- Reduce("cbind", lapply(qtl.scans, function(x) x[[i]]))
+    keep.rows <- which(apply(peak.mat, 1, function(x) length(which(x >= lod.thresh))) > 0)
+    colnames(peak.mat) <- analysis.names
+    peak.mat <- peak.mat[keep.rows,]
+
+    marker.loc <- lapply(map, function(x) x[which(names(x) %in% rownames(peak.mat))])
+
+    chr.peaks <- lapply(1:length(marker.loc), 
+        function(x) if(length(marker.loc[[x]]) > 0){peak.mat[match(names(marker.loc[[x]]), rownames(peak.mat)),,drop=FALSE]})
+
+    has.vals <- which(sapply(marker.loc, length) > 0)
+    max.y <- ceiling(max(sapply(chr.peaks[has.vals], max)))
+
+    layout(matrix(1:(length(has.vals)+1), nrow = 1))
+    par(mar = c(4,3,4,0))
+    plot.new()
+    plot.window(xlim = c(0, 1), ylim = c(0, max.y))
+    axis(2, line = -3)
+    par(mar = c(4,0,4,0))
+    for(ch in has.vals){
+        max.x <- max(ceiling(marker.loc[[ch]]/20)*20) #round up to the nearest 20 Mb.
+        plot.new()
+        plot.window(xlim = c(0, max.x), ylim = c(0, max.y))
+        draw.rectangle(0, max.x, 0, max.y)
+        for(ty in 1:ncol(chr.peaks[[ch]])){
+            points(marker.loc[[ch]], chr.peaks[[ch]][,ty], col = paired.cols[ty], pch = 16)
+        }
+        axis(1)
+        mtext(ch, side = 1, line = 2.5)
+    
+    if(ch == min(has.vals)){
+        par(xpd = NA)
+        legend("bottomleft", pch = 16, col = paired.cols[1:ncol(chr.peaks[[ch]])], 
+            legend = colnames(chr.peaks[[ch]]), bg = "white")
+        par(xpd = FALSE)
+    }
+
+    }
+    
+    
+    #par(mar = c(4,1,4,0))
+    #plot.new()
+    #plot.window(xlim = c(0,1), ylim = c(0,1))
+    #legend(x = 0, y = 1, pch = 16, col = 1:ncol(chr.peaks[[ch]]), legend = colnames(chr.peaks[[ch]]))
+
+    par(xpd = NA)
+    mtext("LOD", side = 2, outer = TRUE, line = -1.5)
+    par(xpd = TRUE)
+    mtext(colnames(raw.cds)[i], side = 3, outer = TRUE, line = -1.5)
+    cat("\n\n")
+}
+```
+
+## Individual vs. Strain Average QTL {.tabset .tabset-fade .tabset-pills}
+
+The figures below compare the LOD traces from the 
+mapping done with individuals and the mapping done
+with strain averages. The corrections and normalizations 
+are shifting the strains around a bit. When we do no
+normalization or adjustment, the individual and strain
+average mapping results are virtually identical. However,
+various normalization and batch correction procedures 
+make these two results diverge to a greater or lesser extent.
+
+
+```{r ind_v_avg, fig.width = 9, fig.height = 3, results = "asis"}
+avg.qtl <- lapply(results.dir, function(x) readRDS(file.path(x, "scan1_results_cds_avg.RDS")))
+
+par(mfrow = c(1,3))
+for(exp in 1:length(avg.qtl)){
+    cat("###", analysis.names[exp], "\n")
+    for(ph in 1:length(avg.qtl[[exp]])){
+        plot(qtl.scans[[exp]][[ph]][,1], avg.qtl[[exp]][[ph]][,1],
+            xlab = "Individuals", ylab = "Strain Average", 
+            main = names(avg.qtl[[exp]])[ph])
+    }
+    cat("\n\n")
+}
+
+```

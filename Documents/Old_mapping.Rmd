@@ -1,5 +1,5 @@
 ---
-title: "EAE"
+title: "EAE Old Analysis"
 author: Anna L Tyler
 date: '`r format(Sys.Date(), "%B %d, %Y")`'
 output: 
@@ -11,72 +11,25 @@ output:
 bibliography: eae.bib
 ---
 
-## Introduction
-The purpose of this workflow is to start getting into data 
-sent by Dimitry Krementsov and his graduate studen Emily Holt 
-at UVM.
 
-They are interested in the genetics of multiple sclerosis (MS).
-The mouse model of MS is called [experimental autoimmune 
-enchephalomyelitis (EAE)](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3229753/).
-In this model, mice are injected with CNS antigens which cause
-development of autoimmunity. 
+This analysis was copied from an old html in which
+the strain-average mapping and the individual mapping
+matched closely. After this date, these two mappings
+diverged. I am re-copying this code to see if I can
+trace the divergence to any particular point.
 
-The Krementsov lab is inducing EAE in a panel of CC mice 
-to investigate the effect of genetic backgroud on this model.
-So far they have identified multiple types of EAE that mirror
-the human experience better than the standard model. Whereas
-the classic mouse model displays a progressive form of ascending
-paralysis, the diverse model has relapsing remitting patterns
-of disease, as well as axial-rotory (AR) EAE. These patterns are
-also seen in humans, but the genetics of the heterogeneity of 
-MS in humans has not been well studied.
-
-In this study, we will try to map genetic variants that 
-are associated with subtypes of EAE. We will also use TRiAGE
-to prioritize genes within the mapped loci.
-
-## Collecting and Processing Data
-
-From the Excel file that Emily sent, I saved the CDS_Individuals
-tab as a csv file. I deleted the header material and an empty row.
-I also converted all strings "C57BL/6" to "C57BL6" to match the 
-other B6 labels.
-
-I also copied the Incidence tab to three files and deleted the 
-line without entries. The files are:
-
-* incidence_female.txt - incidence calculations for all females of each strain
-* incidence_male.txt - incidence calculations for all males of each strain
-* incidence_strain.txt - incidence calculations for each strain including both sexes
-
-```{r get_arguments}
-args <- commandArgs(trailingOnly=T)
-
-b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
-batch_as_covar <- as.logical(args[2]) #use batch as a covariate
-rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
-
-
-if(is.na(b6_correction) || length(b6_correction) == 0){
-b6_correction = FALSE; batch_as_covar = FALSE; rank_norm = FALSE
-}
-
-if(b6_correction && batch_as_covar){stop("Set either b6_correction or batch_as_covar to TRUE, not both.")}
-```
-
-```{r load_code}
+```{r param}
 library(here)
 
 all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
 for(i in 1:length(all.fun)){source(all.fun[i])}
 
-overwrite_previous <- FALSE
-add_founder_genotypes <- FALSE
+overwrite_previous = FALSE
+add_founder_genotypes = FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
-run_permutations <- FALSE
+run_permutations = FALSE
 
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
@@ -84,77 +37,22 @@ cc.color.scheme = "original"
 exclude.zeros = FALSE #if true, we exclude animals with a CDS of 0
 disease.thresh = 0 #maximum disease score considered disease-free
 
-cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
-inc.file.date = "April_2023" #date for incidence csv files to use in format month_year
-
 nperm = 0
+
+results.dir <- here("Results", "Old_Results_Testing")
 ```
 
-## Parameters
-
-```{r param_text}
-if(add_founder_genotypes){
-    founders.included = "yes"
-}else{
-    founders.included = "no"
-}
-
-if(length(remove_strains) > 0){
-    strains.removed <- paste(remove_strains, collapse = ", ")
-}else{
-    strains.removed = "none"
-}
-
-if(!exclude.zeros){
-    zero.text <- "Zeros are included in CDS"
-    zero.treatment <- "included with"
-}else{
-    zero.text <- paste("Animals with scores of", disease.thresh, "and below are excluded from CDS.")
+```{r zeros}
+if(exclude.zeros){
     zero.treatment <- "excluded from"
-}
-
-if(b6_correction){
-    correction.text <- "Batch corrections were made using B6 CDS."
-    correction.label <- "B6-batch"
-}
-if(batch_as_covar){
-    correction.text <- "Batch corrections were done using batch as a covariate."
-    correction.label <- "covar-batch"
-}
-if(!b6_correction && !batch_as_covar){
-    correction.text <- "No batch corrections were done."
-    correction.label <- "no-batch"
-}
-
-if(rank_norm){
-    norm.text <- "Rank Z normalization was performed."
-    norm.label <- "rank-norm"
 }else{
-    norm.text <- "Rank Z normalization was not performed."
-    norm.label <- "no-norm"
+    zero.treatment <- "included with"
 }
-
-file.label <- paste(correction.label, norm.label, sep = "_")
 ```
 
-The parameters for this run are as follows:
+This analysis was run with `zero.treatment` the CDS measurement.
 
-* Founders included: `r founders.included`
-
-* CC Strains removed: `r strains.removed`
-
-* Treatment of zeros: `r zero.text`
-
-* Batch correction: `r correction.text`
-
-* Normalization: `r norm.text`
-
-```{r results_dir}
-results.dir <- here("Results", paste("Zeros", strsplit(zero.treatment, " ")[[1]][1], file.label, sep = "_"))
-if(!file.exists(results.dir)){dir.create(results.dir)}
-```
-
-```{r load_libraries, warning = FALSE}
+```{r load_libraries}
 all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr", "parallel")
 load_libraries(all.packages)
 cores = detectCores()-1
@@ -162,27 +60,21 @@ cores = detectCores()-1
 
 Read in phenotype data.
 
-```{r load_data}
+```{r read_data}
 if(cc.color.scheme == "original"){
     strain.colors <- CCorigcolors
 }else{
     strain.colors <- CCcolors
 }
 
-cds <- read.csv(here("Data", paste0("CDS_", cds.file.date, ".csv")), strip.white = TRUE)
-incidence.files <- get.files(path = here("Data"), want = c(inc.file.date, "incidence"), 
-    full.names = TRUE)
+cds <- read.csv(here("Data", "CDS_April_2023.csv"), strip.white = TRUE)
+incidence.files <- list.files(here("Data"), pattern = "incidence", full.names = TRUE)
 incidence <- lapply(incidence.files, function(x) as.matrix(read.delim(x, row.names = 1)))
 names(incidence) <- gsub(".txt", "", basename(incidence.files))
 ```
 
-This run uses the CDS file from `r gsub("_", " ", cds.file.date)`.
-
-And the incidence files from `r gsub("_", " ", inc.file.date)`.
-
-```{r batches}
+```{r data_parsing}
 num.cds <- as.matrix(cds[,c("Classical.CDS", "AR.CDS", "Global.CDS")])
-rownames(num.cds) <- cds[,"ID"]
 #set all scores equal to or lower than the disease threshold
 #to zero
 if(exclude.zeros){
@@ -191,12 +83,10 @@ if(exclude.zeros){
 
 factor.cds <- as.matrix(cds[,c("Strain", "Sex")])
 u_batch <- unique(cds[,"EXP"])
+batch2keep <- setdiff(u_batch, "X170")
+u_batch <- u_batch[which(u_batch %in% batch2keep)]
 
 #remove animals in batch 170 - these were validation, not part of the original experiment
-to.remove = "X170" 
-keep.batch <- which(u_batch != "X170")
-u_batch <- u_batch[keep.batch]
-
 keep.idx <- which(cds[,"EXP"] != "X170")
 cds <- cds[keep.idx,]
 num.cds <- num.cds[keep.idx,]
@@ -210,15 +100,14 @@ for(b in 1:ncol(batch.mat)){
 cds.covar <- as.matrix(cbind(batch.mat, cds[,"Age.at.D0",drop=FALSE]))
 
 pheno.strains <- cds[,"Strain"]
-eae.strains <- unique(pheno.strains)
+u_strain <- unique(pheno.strains)
 ```
 
 ## Samples by strain
 
-The following heatmap shows how many individuals are in 
-each strain by sex combination.
+The following heatmap shows how many individuals are in each strain by sex combination.
 
-```{r sample_counts, fig.width = 8, fig.height = 1.5}
+```{r count_table}
 count.table <- table(cds[,c("Sex", "Strain")])
 strain.order <- c(3:ncol(count.table), 1,2)
 par(mar = c(1,4,4,2))
@@ -227,20 +116,21 @@ imageWithText(count.table[,strain.order], use.pheatmap.colors = TRUE,
     col.text.cex = 0.7, cex = 0.8, row.text.adj = 0.5)
 ```
 
-## CDS Distribution {.tabset .tabset-fade .tabset-pills}
+## CDS Distribution
 
-Each day of the study, each mouse is given a disease CDS 
-score between 0 and 5, with lower numbers indicating less 
-disease. The cumulative disease score (CDS) for a given mouse
-is the sum of these scores over the course of the study.
+Each day of the study, each mouse is given a disease 
+CDS score between 0 and 5, with lower numbers indicating 
+less disease. The cumulative disease score (CDS) for a 
+given mouse is the sum of these scores over the course 
+of the study.
 
-The distributions of three scores are shown below. Classical
-is the classical presentation of paralysis used in the field.
-AR (axial rotary) scores an alternate form of paralysis.
-Global is the sum of the Classical and AR scores and gives
-an overall score of disease regardless of type. 
+The distributions of three scores are shown below. Classical 
+is the classical presentation of paralysis used in the field. 
+AR (axial rotary) scores an alternate form of paralysis. 
+Global is the sum of the Classical and AR scores and gives 
+an overall score of disease regardless of type.
 
-```{r zeros, fig.width = 8, fig.height = 8}
+```{r cds_dist}
 par(mfrow = c(2,2))
 for(i in 1:ncol(num.cds)){
     hist(num.cds[,i], breaks = 50, main = colnames(num.cds)[i], 
@@ -248,20 +138,35 @@ for(i in 1:ncol(num.cds)){
 }
 ```
 
-There are many mice that never display measurable symptoms
-and have cumulative disease scores of 0. This kind of floor
-effect causes problems with statistical tests that assume
-a normal distribution.
+There are many mice that never display measurable 
+symptoms and have cumulative disease scores of 0. 
+This kind of floor effect causes problems with 
+statistical tests that assume a normal distribution.
 
-If exclude.zeros is set to TRUE, these 0 values will be
-excluded from CDS mapping.
+If exclude.zeros is set to TRUE, these 0 values will 
+be excluded from CDS mapping.
 
-In this analysis `r zero.text`.
+In this analysis exclude.zeros is set to: `r exclude.zeros`.
 
-The plots below show the CDS distribution by strain.
+## Incidence {.tabset .tabset-fade .tabset-pills}
 
-```{r cds, results = "asis", fig.width = 10, fig.height = 5}
+Emily calculated an incidence level for each strain as a whole 
+and separately by sex. Incidence values by strain are as follows.
 
+```{r incidence, results = "asis"}
+for(i in 1:length(incidence)){
+    cat("###", names(incidence)[i], "\n")
+    imageWithText(incidence[[i]], main = names(incidence)[i], use.pheatmap.colors = TRUE)
+    cat("\n\n")
+}
+```
+
+## CDS Distribution {.tabset .tabset-fade .tabset-pills}
+
+The distribution of CDS is shown below.
+
+
+```{r cds_dist2, results = "asis"}
 plot_cds_by_strain <- function(scores, strain.labels, exclude.zeros = TRUE,
     ymin = NULL, ymax = NULL, plot.label = ""){
     
@@ -280,7 +185,7 @@ plot_cds_by_strain <- function(scores, strain.labels, exclude.zeros = TRUE,
     if(is.null(ymax)){ymax = max(scores, na.rm = TRUE)}
     if(is.null(ymin)){
         ymin = min(scores, na.rm = TRUE)
-        #if(ymin > 0){ymin <- 0}
+        if(ymin > 0){ymin <- 0}
     }
 
     #quartz(width = 10, height = 5)
@@ -313,22 +218,23 @@ for(cd in 1:ncol(num.cds)){
 
 ## Batch Effects
 
-The individuals were run in multiple batches, which can 
-cause systematic biases in the data. We need to correct
-any batch effects that we find before we map.
+The individuals were run in multiple batches, 
+which can cause systematic biases in the data. 
+We need to correct any batch effects that we find 
+before we map.
 
 The following heatmap shows how the different 
 strains and sexes were represented in different 
 batches. The males and females are shown separately.
 
-```{r batch_assortment, fig.width = 5, fig.height = 7}
+```{r batch}
 batch.list <- vector(mode = "list", length = length(u_batch))
 for(b in 1:length(u_batch)){
     batch.idx <- which(cds.covar[,b] == 1)
-    batch.mat <- matrix(0, nrow = length(eae.strains), ncol = 2)
-    rownames(batch.mat) <- eae.strains
+    batch.mat <- matrix(0, nrow = length(u_strain), ncol = 2)
+    rownames(batch.mat) <- u_strain
     batch.table <- table(data.frame(factor.cds[batch.idx,]))
-    batch.mat[match(rownames(batch.table), eae.strains),] <- batch.table
+    batch.mat[match(rownames(batch.table), u_strain),] <- batch.table
     colnames(batch.mat) <- paste(colnames(cds.covar)[b], colnames(batch.table), sep = "_")
     batch.list[[b]] <- batch.mat
 }
@@ -337,132 +243,48 @@ imageWithText(all.batch.counts, use.pheatmap.colors = TRUE, col.text.shift = -38
 col.text.rotation = 45, col.text.adj = 0, cex = 0.7)
 ```
 
-The following boxplots show the batch values for the B6 
-animals. These show that the batches had an increase in 
-CDS across the batches.
+The following boxplots show the batch values for the B6 animals. 
+These show that the batches had an increase in CDS across the batches.
 
-```{r b6_batch, fig.width = 8, fig.height = 8}
+```{r b6_batch}
 b6.idx <- which(factor.cds[,1] == "C57BL6")
-if(exclude.zeros){
-    nonzero.idx <- lapply(1:ncol(num.cds), function(x) which(num.cds[,x] != 0))
-}else{
-    nonzero.idx <- lapply(1:ncol(num.cds), function(x) 1:nrow(num.cds))
-}
-b6.batch.idx <- apply(cds.covar[,1:(ncol(cds.covar)-1)], 2, 
-    function(x) intersect(which(x == 1), b6.idx))
+batch.idx <- apply(cds.covar[,1:3], 2, function(x) intersect(which(x == 1), b6.idx))
+b6.batches <- lapply(batch.idx, function(x) num.cds[x,])
 
 par(mfrow = c(2,2))
 b6.by.batch <- vector(mode = "list", length = ncol(num.cds))
 names(b6.by.batch) <- colnames(num.cds)
-for(cd in 1:ncol(num.cds)){
-    #get batch values for this CDS
-    vals.by.batch <- lapply(1:length(b6.batch.idx), 
-        function(x) num.cds[intersect(b6.batch.idx[[x]], nonzero.idx[[cd]]),cd])
-    names(vals.by.batch) <- u_batch
-    b6.by.batch[[cd]] <- vals.by.batch
-    boxplot(b6.by.batch[[cd]], main = colnames(num.cds)[cd])    
+for(i in 1:ncol(num.cds)){
+    b6.by.batch[[i]] <- lapply(b6.batches, function(x) x[,i])
+    boxplot(b6.by.batch[[i]], main = colnames(num.cds)[i])
 }
 
 ```
 
+### Batch Correction Procedure
 
-### Batch correction procedure
+To correct for batch effects we did the following:
 
-The B6 batch correction procedure is as follows:
-
-1. Calculate the overall mean CDS for B6 mice 
-    across the entire experiment
+1. Calculate the overall mean CDS for B6 mice across 
+    the entire experiment
 2. Calculate the mean CDS B6 mice in each batch.
-3. Adjust all mice in each batch based on the
-    difference in means in the B6. Subtract off 
-    the mean deviation, and divide by the standard
-    deviation.
-4. Male and female B6 mice do not have a sex 
-    difference in CDS, and adjusting by the 
-    two sexes separately could inadvertently 
-    introduce a sex effect into the other strains,
-    so we use overall means rather than sex-specific 
-    means.
+3. Adjust all mice in each batch based on the difference 
+    in means in the B6. Subtract off the mean deviation, 
+    and divide by the standard deviation.
+4. Male and female B6 mice do not have a sex difference 
+    in CDS, and adjusting by the two sexes separately could 
+    inadvertently introduce a sex effect into the other strains, 
+    so we use overall means rather than sex-specific means.
 
-The batch correction procedure using batch as a covariate is as follows:
+### Age at D0
 
-1. Create a binary matrix indicating whether each individual
-    was run in each batch (1) or not (0).
-2. Regress this matrix out of the CDS matrix.
+Another one of our covariates is Age.at.D0. The following plots 
+show the relationship between Age.at.D0 and each CDS.
 
-
-### Remove batch effects {.tabset .tabset-fade .tabset-pills}
-
-```{r adj_cds}
-#only correct Classical and Global
-#change these indices to change which
-#traits are adjusted for batch effects
-cds.idx <- c(1,2,3) 
-```
-
-Adjust for batch. We adjusted the following traits for batch effects:
-`r cat(colnames(num.cds)[cds.idx], sep = "\n")`
-
-```{r no_adj}
-adj.cds <- num.cds 
-```
-
-```{r adj_batch_covar}
-if(batch_as_covar){
-    adj.cds <- adjust(num.cds, cds.covar[,1:ncol(cds.covar)-1])
-}
-```
-
-```{r mean_sd}
-
-if(b6_correction){
-    batch.mean <- sapply(b6.by.batch, function(x) sapply(x, mean))
-    batch.sd <- sapply(b6.by.batch, function(x) sapply(x, sd))
-    batch.sd[which(is.na(batch.sd))] <- 1
-
-    #for each batch
-    for(b in c(1:(ncol(cds.covar)-1))){
-        batch.idx <- which(cds.covar[,b] == 1)
-        for(j in cds.idx){ #only correct classical and global
-            if(exclude.zeros){
-                    nonzero.idx <- which(num.cds[,j] != 0)
-                }else{
-                    nonzero.idx <- 1:nrow(num.cds)
-                }
-            adj.idx <- intersect(batch.idx, nonzero.idx)
-            adj.cds[adj.idx,j] <- (num.cds[adj.idx,j] - batch.mean[b,j])/batch.sd[b,j]
-        }
-    }
-    
-}
-```
-
-
-### Age at D0 {.tabset .tabset-fade .tabset-pills}
-
-Another one of our covariates is Age.at.D0.
-
-The following boxplot shows that age varies significantly 
-by batch.
-
-```{r age_by_batch}
-age <- cds.covar[,ncol(cds.covar)]
-age.by.batch <- lapply(1:(ncol(cds.covar)-1), function(x) age[which(cds.covar[,x] == 1)])
-p.val <- aov.by.list(age.by.batch)$"Pr(>F)"[1]
-
-boxplot(age.by.batch, main = paste("Age at D0 by batch\n", "p =", signif(p.val, 2)))
-stripchart(age.by.batch, vertical = TRUE, method = "jitter", pch = 16, 
-    col = "#756bb1", add = TRUE)
-```
-
-The following plots show the relationship between Age.at.D0
-and each CDS after adjusting for batch.
-
-```{r age_at_day0, results = "asis", fig.width = 8, fig.height = 8}
-
+```{r age}
 u_age <- unique(cds.covar[,"Age.at.D0"])
 age.idx <- lapply(u_age, function(x) which(cds.covar[,"Age.at.D0"] == x))
-cds.by.age <- lapply(age.idx, function(x) adj.cds[x,,drop=FALSE])
+cds.by.age <- lapply(age.idx, function(x) num.cds[x,,drop=FALSE])
 
 par(mfrow = c(2,2))
 for(i in 1:3){
@@ -477,52 +299,47 @@ for(i in 1:3){
     }
 
     plot.with.model(x[nonzero.idx], y[nonzero.idx], xlab = "Age at D0", 
-        ylab = colnames(num.cds)[i], main = colnames(num.cds)[i])
+        ylab = colnames(num.cds)[i+1])
 }
 ```
 
+### Remove batch and age effects
 
-```{r adjust_age, eval = FALSE}
-#adjust for age
-for(i in 1:ncol(adj.cds)){
-    if(exclude.zeros){
-        nonzero.idx <- which(num.cds[,i] != 0)
-    }else{
-        nonzero.idx <- 1:nrow(num.cds)
+Adjust each measure of CDS for batch. Subtract off 
+the mean and divided by the standard deviation for 
+the CDS measurements in each trait.
+
+```{r age_batch}
+batch.mean <- sapply(b6.by.batch, function(x) sapply(x, mean))
+batch.sd <- sapply(b6.by.batch, function(x) sapply(x, sd))
+
+#for each batch
+adj.cds <- num.cds
+for(b in 1:nrow(batch.mean)){
+    batch.idx <- which(cds.covar[,b] == 1)
+    for(j in 1:ncol(num.cds)){
+        adj.cds[batch.idx,j] <- (num.cds[batch.idx,j] - batch.mean[b,j])/batch.sd[b,j]
     }
-    adj.cds[nonzero.idx,i] <- adjust(adj.cds[nonzero.idx,i,drop=FALSE], 
-        cds.covar[nonzero.idx,"Age.at.D0",drop=FALSE])
 }
 ```
 
-```{r write_adj}
-#write out the results of whatever adjustments we have done
-write.table(adj.cds, file.path(results.dir, "Adj_CDS.csv"), sep = ",", quote = FALSE)
+```{r adjust}
+for(i in 1:ncol(adj.cds)){
+    cds.idx <- which(num.cds[,i] != 0)
+    adj.cds[cds.idx,i] <- adjust(adj.cds[cds.idx,i,drop=FALSE], 
+        cds.covar[cds.idx,"Age.at.D0",drop=FALSE])
+}
 ```
 
-Rank Z normalize the CDS scores if this is specified.
-
-```{r no_norm}
-norm.cds <- adj.cds
-colnames(norm.cds) <- gsub(".CDS", "", colnames(norm.cds)) #take off CDS in labels, to save room in plots
-```
+Rank Z normalize the CDS scores.
 
 ```{r norm}
-if(rank_norm){
-    for(i in 1:ncol(norm.cds)){
-        if(exclude.zeros){
-            nonzero.idx <- which(num.cds[,i] != 0)
-        }else{
-            nonzero.idx <- 1:nrow(num.cds)
-        }
-        norm.cds[nonzero.idx,i] <- rankZ(adj.cds[nonzero.idx,i])
-    }
+norm.cds <- adj.cds
+for(i in 1:ncol(norm.cds)){
+    nonzero.idx <- which(num.cds[,i] != 0)
+    norm.cds[nonzero.idx,i] <- rankZ(adj.cds[nonzero.idx,i])
 }
 colnames(norm.cds) <- gsub(".CDS", "", colnames(norm.cds)) #take off CDS, to save room in plots
-
-#write out normzliaed values
-write.table(norm.cds, file.path(results.dir, "Norm_CDS.csv"), sep = ",", quote = FALSE)
-
 ```
 
 ### Normalized Scores {.tabset .tabset-fade .tabset-pills}
@@ -530,25 +347,22 @@ write.table(norm.cds, file.path(results.dir, "Norm_CDS.csv"), sep = ",", quote =
 The following plots show the distribution of each 
 disease score after adjustments and normalization.
 
-```{r norm_dist, fig.width = 10, fig.height = 5, results = "asis"}
-#ymin = min(norm.cds);ymax = max(norm.cds) #all on same axes
-ymin = NULL; ymax = NULL #all on independend axes
+```{r norm_cds, results = "asis"}
 for(cd in 1:ncol(norm.cds)){
     cat("####", colnames(norm.cds)[cd], "\n")
     plot_cds_by_strain(scores = norm.cds[,cd], 
         strain.labels = factor.cds[,"Strain"], exclude.zeros = exclude.zeros,
-        ymin = ymin, ymax = ymax, plot.label = colnames(num.cds)[cd])
+        ymin = min(norm.cds), ymax = max(norm.cds), plot.label = colnames(num.cds)[cd])
     cat("\n\n")
 }
-
 ```
 
 ## CC genotypes
 
-Get the CC genotypes from the qtl2 github website, convert
-to genoprobs, and calculate kinship matrices.
+Get the CC genotypes from the qtl2 github website, 
+convert to genoprobs, and calculate kinship matrices.
 
-```{r get_CC_genotypes, warning = FALSE}
+```{r cc_geno}
 cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
 
 map.file <- here("Data", "map.RDS")
@@ -594,10 +408,10 @@ if(!file.exists(map.file)){
 }
 ```
 
-If specified, add genoptypes for 129, NOD, and B6, so we 
-can use them in mapping.
+If specified, add genoptypes for 129, NOD, and B6, 
+so we can use them in mapping.
 
-```{r add_other_strains}
+```{r add_founder}
 if(add_founder_genotypes){
     founder_fun <- function(strain.name){
         founder.genotypes <- rep(0, length(strain.colors))
@@ -625,22 +439,19 @@ if(add_founder_genotypes){
 
     #recalculate K for the new genoprobs.
     mapping.K <- calc_kinship(mapping.genoprobs, "loco")
-    mapping.strains <- eae.strains
 }else{
     mapping.genoprobs <- cc.genoprobs
     mapping.K <- K
-    mapping.strains <- eae.strains[grep("CC", eae.strains)]
 }
-
 ```
 
-## Allele Frequencies  {.tabset .tabset-fade .tabset-pills}
+### Allele Frequencies
 
 The following plots show the frequencies of each founder 
-allele across each chromosome. Regions in which the allele
+allele across each chromosome. Regions in which the allele 
 frequencies are imbalanced may not be good for mapping.
 
-```{r allele_freq, results = "asis", fig.width = 8, fig.height = 4}
+```{r allele_freq}
 allele_freq <- lapply(mapping.genoprobs, function(x) apply(x, 3, colMeans))
 for(ch in 1:length(allele_freq)){
     cat("### Chr", names(map)[[ch]], "\n")
@@ -665,18 +476,18 @@ for(ch in 1:length(allele_freq)){
 }
 ```
 
-## Sex Effects Plotted by Individual {.tabset .tabset-fade .tabset-pills}
+## Sex Effects
 
-The following plots show the trait distributions for each
-strain. Each plot is ordered by overall strain mean.
+The following plots show the trait distributions for 
+each strain. Each plot is ordered by overall strain 
+mean.
 
 For each strain, the dots are split and colored by sex. 
-Each point represents one mouse. The horizontal line
-shows the mean value for that sex. This helps show
-where there might be sex effects in individual strains.
+Each point represents one mouse. The horizontal line 
+shows the mean value for that sex. This helps show where 
+there might be sex effects in individual strains.
 
-
-```{r trait_fun}
+```{r sex_effects}
 #This function puts the given trait into a list based
 #on strain and plots it if desired.
 trait_list <- function(strain.tables, trait.name, exclude.zeros = TRUE, 
@@ -809,18 +620,19 @@ trait_bars <- function(strain.tables, trait.name, exclude.zeros = TRUE,
     }
     return(diff.p)
 }
+
 ```
 
-```{r trait_dist}
-strain.tables <- lapply(mapping.strains, function(x) norm.cds[which(cds[,1] == x),])
-strain.factors <- lapply(mapping.strains, function(x) factor.cds[which(cds[,1] == x),])
-names(strain.tables) <- names(strain.factors) <- mapping.strains
+```{r strain_tables}
+strain.tables <- lapply(u_strain, function(x) norm.cds[which(cds[,1] == x),])
+strain.factors <- lapply(u_strain, function(x) factor.cds[which(cds[,1] == x),])
+names(strain.tables) <- names(strain.factors) <- u_strain
 ```
 
 ### Classical
 
-```{r dots_classical, fig.width = 10, fig.height = 5}
-sex.col <- as.numeric(as.factor(unlist(lapply(strain.factors, function(x) x[,"Sex"]))))
+```{r classical}
+sex.col <- as.numeric(as.factor(cds[,"Sex"]))
 
 strain.classical <- trait_list(strain.tables, "Classical", col.by = sex.col+2, 
     exclude.zeros = exclude.zeros)
@@ -830,7 +642,7 @@ legend("topleft", pch = 16, col = unique(sex.col)+2, legend = c("Female", "Male"
 
 ### AR
 
-```{r dots_ar, fig.width = 10, fig.height = 5}
+```{r ar}
 strain.ar  <- trait_list(strain.tables, "AR", col.by = sex.col+2,
     exclude.zeros = exclude.zeros)
 legend("topleft", pch = 16, col = unique(sex.col)+2, legend = c("Female", "Male"), 
@@ -839,123 +651,36 @@ legend("topleft", pch = 16, col = unique(sex.col)+2, legend = c("Female", "Male"
 
 ### Global
 
-```{r dots_global, fig.width = 10, fig.height = 5}
+```{r global}
 strain.global <- trait_list(strain.tables, "Global",col.by = sex.col+2, 
     exclude.zeros = exclude.zeros)
 legend("topleft", pch = 16, col = unique(sex.col)+2, legend = c("Female", "Male"), 
     bg = "white")
 ```
 
-## Sex Effects by Strain {.tabset .tabset-fade .tabset-pills}
-
-The following plots distill the above figures to just the 
-means for each sex. This makes it easier to see where the
-means for the two sexes are different. 
-
-An imbalance of sex effects in the different strains could
-lead to strange mapping patterns (I think).
-
-The top plot for each shows the means for each sex and each
-strain. The strains are ordered by overall strain mean.
-
-The middle plot shows the -log10 of the p value for each 
-difference. The solid line shows the p = 0.05 threshold,
-and the dashed line shows the bon ferroni adjust p value
-threshold.
-
-The bottom dot plot shows a direct comparison of 
-female means vs. male means for each strain and 
-each trait. Strains with a large difference between
-male and female (90th percentile) are labeled.
-
-Overall there is no difference between the sexes.
-However, a few strains have large sex biases. 
-For CC044, CC075, and CC072, females tend to have a
-larger disease score. For CC042, the males tend to
-have a larger disease score.
-
-### Classical
-
-```{r plot_bars_fun}
-
-plot_bars <- function(trait.name, exclude.zeros){
-    layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-    par(mar = c(3,4,4,4))
-    classical.p <- trait_bars(strain.tables, trait.name, col.by = sex.col+2, 
-        exclude.zeros = exclude.zeros)
-    legend("topleft", pch = 16, col = unique(sex.col)+2, legend = c("Female", "Male"), 
-        bg = "white")
-    par(mar = c(4,3.5,0,3.5))
-    p.thresh <- c(-log10(0.05), -log10(0.05/length(strain.tables)))
-    ymax <- max(c(p.thresh, -log10(classical.p)), na.rm = TRUE)
-    ymax <- ceiling(ymax*1)/1
-    a <- barplot(-log10(classical.p), las = 2, ylim = c(0, ymax))
-    mtext("-log10(p) for sex difference", side = 2, line = 2.5)
-    segments(x0 = rep(0, length(p.thresh)), x1 = rep(max(a[,1]), length(p.thresh)), 
-        y0 = p.thresh, lty = c(1,2))
-    par(xpd = TRUE)
-    text(x = max(a[,1]), y = -log10(0.05), labels = "0.05", adj = 0)
-    text(x = max(a[,1]), y = -log10(0.05/length(strain.tables)), labels = "corrected", adj = 0)
-    par(xpd = FALSE)
-}
-```
-
-```{r plot_dots}
-plot_dots <- function(trait.name, diff.percentile = 90){
-
-    f.vals <- lapply(1:length(strain.factors), function(x) strain.tables[[x]][which(strain.factors[[x]][,"Sex"] == "F"),trait.name])
-    m.vals <- lapply(1:length(strain.factors), function(x) strain.tables[[x]][which(strain.factors[[x]][,"Sex"] == "M"),trait.name])
-
-    f.means <- sapply(f.vals, mean)
-    m.means <- sapply(m.vals, mean)
-
-    diffs <- abs(f.means - m.means)
-    diff.thresh <- get.percentile(diffs, diff.percentile)
-    big.diffs <- which(diffs >= diff.thresh)
-
-    plot(f.means, m.means, pch = 16, xlab = "Female Mean", ylab = "Male Mean",
-    main = trait.name)
-    abline(0,1)
-    text(f.means[big.diffs], m.means[big.diffs], labels = names(strain.factors)[big.diffs],
-        pos = 2)
-    
-}
-```
-
-```{r bars_classical, fig.width = 10, fig.height = 7}
-plot_bars("Classical", exclude.zeros = exclude.zeros)
-```
-
-```{r dots_comp_classical}
-plot_dots("Classical")
-```
-
-
-### AR
-
-```{r bars_ar, fig.width = 10, fig.height = 7}
-plot_bars("AR", exclude.zeros = exclude.zeros)
-```
-
-```{r dots_comp_ar}
-plot_dots("AR")
-```
-
-
-### Global
-
-```{r bars_global, fig.width = 10, fig.height = 7}
-plot_bars("Global", exclude.zeros = exclude.zeros)
-```
-
-```{r dots_comp_global}
-plot_dots("Global")
-```
-
-
 ### Overall Sex Effect
 
-```{r sex_diff, fig.height = 8, fig.width = 8}
+The following plots distill the above figures to just the 
+means for each sex. This makes it easier to see where the 
+means for the two sexes are different.
+
+An imbalance of sex effects in the different strains could 
+lead to strange mapping patterns (I think).
+
+The top plot for each shows the means for each sex and each 
+strain. The strains are ordered by overall strain mean.
+
+The lower plot shows the -log10 of the p value for each 
+difference. The solid line shows the p = 0.05 threshold, 
+and the dashed line shows the bon ferroni adjust p value 
+threshold.
+
+For the most part, there are no sex differences, The only 
+strain for which there might be a real sex difference is CC046. 
+Could this large difference be enough to cause the weird 
+sex-specific interactions we see below?
+
+```{r overall}
 #quartz(width = 8, height = 8)
 par(mfrow = c(2,2))
 for(i in 1:ncol(norm.cds)){
@@ -975,33 +700,28 @@ for(i in 1:ncol(norm.cds)){
 
 ## CDS Trait Correlations
 
-The following plot shows that global CDS
-is dominated by classical disease.
-It also shows that CDS in classical 
+The following plot shows that global CDS is dominated by 
+classical disease. It also shows that CDS in classical 
 disease and AR are unrelated to each other.
 
-```{r trait_cor, fig.width = 8, fig.height = 8}
+```{r trait_cor}
 trait.pairs <- pair.matrix(1:ncol(norm.cds))
 par(mfrow = c(2,2))
 for(i in 1:nrow(trait.pairs)){
     trait1 <- trait.pairs[i,1]
     trait2 <- trait.pairs[i,2]
-    if(exclude.zeros){
-        nonzero.idx <- intersect(which(norm.cds[,trait1] != 0), which(norm.cds[,trait2] != 0))
-    }else{
-        nonzero.idx <- 1:nrow(norm.cds)
-    }
+    nonzero.idx <- intersect(which(norm.cds[,trait1] != 0), which(norm.cds[,trait2] != 0))
     plot.with.model(norm.cds[nonzero.idx,trait1], norm.cds[nonzero.idx,trait2],
         xlab = colnames(norm.cds)[trait1], ylab = colnames(norm.cds)[trait2],
         main = paste(colnames(norm.cds)[trait1], "vs.", colnames(norm.cds)[trait2]))
 }
 ```
 
-## Map CDS with Individuals
+### Map with Individuals
 
-We mapped each CDS across the individual mice. 
+We mapped each CDS across the individual mice.
 
-```{r methods}
+```{r param_text}
 if(add_founder_genotypes){
     methods.line <- "Both CC and founder strains were used for mapping."
 }else{
@@ -1015,28 +735,33 @@ if(length(remove_strains) != 0){
 }
 ```
 
-`r methods.line`
+`r methods.line` 
 `r remove.line`
 
-For the genoprobs and kinship matrices, we copied
-the entries for the individuals in each strain and
+For the genoprobs and kinship matrices, we copied 
+the entries for the individuals in each strain and 
 used indices for row names.
 
 The LOD traces for each trait are shown below along 
-with plots for the FDR results. Significance thresholds
+with plots for the FDR results. Significance thresholds 
 from the permutations are also shown on the LOD traces.
 
-```{r expand_matrices}
-
-if(length(remove_strains) != 0){
-    remove.idx <- sapply(remove_strains, function(x) which(mapping.strains == x))
-    mapping.strains <- mapping.strains[-remove.idx]
+```{r mapping_setup}
+if(add_founder_genotypes){
+    mapping_strains <- u_strain
+}else{
+    mapping_strains <- u_strain[grep("CC", u_strain)]
 }
 
-pheno.strains <- unlist(sapply(mapping.strains, function(x) pheno.strains[grep(x, pheno.strains)]))
+if(length(remove_strains) != 0){
+    remove.idx <- sapply(remove_strains, function(x) which(mapping_strains == x))
+    mapping_strains <- mapping_strains[-remove.idx]
+}
 
-K.idx <- sapply(mapping.strains, function(x) grep(x, rownames(mapping.K[[1]])))
-K.num <- sapply(mapping.strains, function(x) length(which(pheno.strains == x)))
+pheno.strains <- unlist(sapply(mapping_strains, function(x) pheno.strains[grep(x, pheno.strains)]))
+
+K.idx <- sapply(mapping_strains, function(x) grep(x, rownames(mapping.K[[1]])))
+K.num <- sapply(mapping_strains, function(x) length(which(pheno.strains == x)))
 expanded.idx <- unlist(lapply(1:length(K.idx), function(x) rep(K.idx[x], K.num[x])))
 groups <- names(expanded.idx)
 
@@ -1075,7 +800,7 @@ rownames(mapping.covar) <- 1:nrow(mapping.covar)
 
 The heritability of CDS is shown below.
 
-```{r herit, fig.width = 5, fig.height = 5}
+```{r herit}
 overall.k.file <- here("Data", "kinship_overall.RDS")
 if(!file.exists(overall.k.file) || overwrite_previous){
     overall.K <- calc_kinship(expanded.genoprobs, "overall")
@@ -1095,8 +820,7 @@ barplot_with_num(round(ind.herit, 2), ylab = "Heritability", xlab = "",
     ylim = c(0, 0.4), text.shift = 0.09, main = "Trait Heritability Estimates")
 ```
 
-```{r mapping_fun}
-
+```{r map_fun}
 map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
     intcovar = NULL, groups = NULL, exclude.zeros = TRUE, 
     results.file = file.path(results.dir, "scan1_results.RDS")){
@@ -1296,7 +1020,6 @@ plot_coef_scans <- function(coef.results, map.geno, map.pheno, fdr_results = NUL
                 }
                 par(xpd = FALSE)
 
-
                 plot_coefCC(chr.coef[[idx]], map = map, main = paste(trait, "Chr", chr),
                     col = strain.colors)
                 abline(v = peak.loc, lwd = 2)
@@ -1307,10 +1030,9 @@ plot_coef_scans <- function(coef.results, map.geno, map.pheno, fdr_results = NUL
         }
     }
 }
-
 ```
 
-```{r map_cds, warning = FALSE}
+```{r cds_scan}
 cds.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K, 
     addcovar = covar, exclude.zeros = exclude.zeros, 
     results.file = file.path(results.dir, "scan1_results_cds.RDS"))
@@ -1323,10 +1045,9 @@ if(run_permutations){
 }
 ```
 
-
 ### CDS by individual LOD traces {.tabset .tabset-fade .tabset-pills}
 
-```{r plot_cds_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
+```{r lod_trace, results = "asis"}
 #plot the scans, and FDR results
 if(run_permutations){
     fdr_summaries_cds <- plot_fdr_fun(cds.scans, cds.perm, 
@@ -1340,16 +1061,16 @@ if(run_permutations){
 }
 ```
 
-### CDS by individual allele effects {.tabset .tabset-fade .tabset-pills}
+### CDS by individual allele effects
 
 ```{r thresh}
-allele.thresh = c(5,7,5)
+allele.thresh = c(5,6,6)
 ```
 
-The following plots show the allele effects for the largest
-QTL for each trait.
+The following plots show the allele effects for 
+the largest QTL for each trait.
 
-```{r scan_coef, fig.width = 7, fig.height = 7, results = "asis", eval = FALSE}
+```{r coef}
 cds.coef <- allele_coef(map.geno = expanded.genoprobs, 
     map.pheno = mapping.pheno, map.k = exp.K, addcovar = mapping.covar,
     scan.results = cds.scans,
@@ -1373,13 +1094,12 @@ if(run_permutations){
 #dev.off()
 ```
 
-### LOD intervals {.tabset .tabset-fade .tabset-pills} 
+### LOD Intervals {.tabset .tabset-fade .tabset-pills}
 
-The following tables show LOD peak intervals for the top 3 peaks from 
-each trait.
+The following tables show LOD peak intervals 
+for the top 3 peaks from each trait.
 
-
-```{r lod_peaks, results = "asis"}
+```{r top_peaks, results = "asis"}
 top.n <- 3
 for(ph in 1:length(cds.scans)){
     cat("####", names(cds.scans)[ph], "\n")
@@ -1390,23 +1110,18 @@ for(ph in 1:length(cds.scans)){
 }
 ```
 
-## Map CDS with Strain Average (Sex Additive) 
+## Map with Strain Average (Sex Additive)
 
-We also used strain averages to map CDS. We calculated
-the strain averages individually for each sex and used
+We also used strain averages to map CDS. We calculated 
+the strain averages individually for each sex and used 
 sex as a covariate.
 
-First we generated strain-mean versions of the genoprobs
-and kinship matrices and duplicated each row for the two sexes.
+First we generated strain-mean versions of the genoprobs 
+and kinship matrices and duplicated each row for the two 
+sexes.
 
-```{r assign_pheno}
-#try calculating strain averages from raw data
-mapping.pheno <- num.cds[pheno.idx,]
-```
-
-```{r calc_avg_pheno}
-#calculate average phenotypes and construct new
-#genoprobs and kinship for the mean values.
+```{r strain_avg}
+#generate genoprobs for each strain and sex combination
 genoprob.strain <- sapply(strsplit(rownames(mapping.genoprobs[[1]]), "/", fixed = TRUE), function(x) x[1])
 strain.by.sex <- cbind(rep(genoprob.strain, each = 2), rep(c("F", "M"), length(genoprob.strain)))
 ind.labels <- apply(strain.by.sex, 1, function(x) paste(x, collapse = "_"))
@@ -1427,32 +1142,26 @@ rownames(mean.pheno) <- ind.labels
 
 mean.covar <- matrix(as.numeric(as.factor(strain.by.sex[,2])), ncol = 1)
 rownames(mean.covar) <- ind.labels
-
-#mean.pheno <- mean.pheno.old[which(!is.na(rowSums(mean.pheno.old))),]
-#norm.mean.pheno <- apply(mean.pheno.old, 2, rankZ)
-norm.mean.pheno <- mean.pheno
 ```
 
-```{r map_cds_avg, warning = FALSE}
-#do not exclude zeros for stain averages. These don't have
-#the same spike in the distribution
-cds.avg.scans.sex.add <- map_pheno(mean.genoprobs, norm.mean.pheno, mean.K, 
+```{r map_avg}
+cds.avg.scans.sex.add <- map_pheno(mean.genoprobs, mean.pheno, mean.K, 
     exclude.zeros = FALSE, addcovar = mean.covar,
     results.file = file.path(results.dir, "scan1_results_cds_avg.RDS"))
 
 if(run_permutations){
-    cds.avg.scans.sex.add.perm <- perm_scans(mean.genoprobs, norm.mean.pheno, mean.K,
-        cds.avg.scans.sex.add, groups = NULL, exclude.zeros = FALSE, 
-        nperm = nperm, results.file = file.path(results.dir, "scan1perm_results_cds_avg.RDS"))
+    cds.avg.scans.sex.add.perm <- perm_scans(mean.genoprobs, mean.pheno, mean.K,
+        cds.avg.scans.sex.add, groups = NULL, exclude.zeros = FALSE, nperm = nperm,
+        results.file = file.path(results.dir, "scan1perm_results_cds_avg.RDS"))
 }
 ```
 
 ### LOD Traces {.tabset .tabset-fade .tabset-pills}
 
-The following plots show the LOD traces for the strain averages of 
-CDS and the significance thresholds.
+The following plots show the LOD traces for the strain 
+averages of CDS and the significance thresholds.
 
-```{r strain_avg_plots, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
+```{r avg_lod, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
     fdr_summaries_sev_avg <- plot_fdr_fun(cds.avg.scans.sex.add, cds.avg.scans.sex.add.perm,
@@ -1460,19 +1169,17 @@ if(run_permutations){
 }else{
     for(i in 1:length(cds.avg.scans.sex.add)){
         cat("####", names(cds.avg.scans.sex.add)[i], "\n")
-        plot(cds.avg.scans.sex.add[[i]], map = map, main = names(cds.avg.scans.sex.add)[i])
+        plot(cds.avg.scans.sex.add[[i]], map = map)
         cat("\n\n")
     }
 }
-#dev.off()
 ```
 
 ### Strain Average Allele Effects {.tabset .tabset-fade .tabset-pills}
 
-```{r scan_coef_by_strain, fig.width = 7, fig.height = 7, results = "asis", eval = FALSE}
-
+```{r avg_allele, results = "asis"}
 cds.avg.coef.sex.add <- allele_coef(map.geno = mean.genoprobs, 
-    map.pheno = norm.mean.pheno, map.k = mean.K, scan.results = cds.avg.scans.sex.add,
+    map.pheno = mean.pheno, map.k = mean.K, scan.results = cds.avg.scans.sex.add,
     addcovar = mean.covar,
     lod.threshold = allele.thresh, exclude.zeros = FALSE, 
     chr.lod.file = file.path(results.dir, "Chr.LOD.cds.Avg.RDS"), 
@@ -1481,26 +1188,24 @@ cds.avg.coef.sex.add <- allele_coef(map.geno = mean.genoprobs,
 if(run_permutations){
     #pdf("~/Desktop/test.pdf", width = 7, height = 7)
     plot_coef_scans(coef.results = cds.avg.coef.sex.add, 
-        map.geno = mean.genoprobs, map.pheno = norm.mean.pheno, 
+        map.geno = mean.genoprobs, map.pheno = mean.pheno, 
         fdr_results = fdr_summaries_sev_avg, tab.level = "####",
         sig_lines = "Genome-wide")
 }else{
     plot_coef_scans(coef.results = cds.avg.coef.sex.add, 
-        map.geno = mean.genoprobs, map.pheno = norm.mean.pheno, 
+        map.geno = mean.genoprobs, map.pheno = mean.pheno, 
         fdr_results = NULL, tab.level = "####",
         sig_lines = "Genome-wide")
 }
 
-#dev.off()
 ```
 
 ### Strain Average LOD intervals {.tabset .tabset-fade .tabset-pills}
 
-The following tables show LOD peak intervals for the top 3 peaks from 
-each trait.
+The following tables show LOD peak intervals 
+for the top 3 peaks from each trait.
 
-
-```{r lod_peaks_avg, results = "asis"}
+```{r top_avg, results = "asis"}
 top.n <- 3
 for(ph in 1:length(cds.avg.scans.sex.add)){
     cat("####", names(cds.avg.scans.sex.add)[ph], "\n")
@@ -1511,29 +1216,25 @@ for(ph in 1:length(cds.avg.scans.sex.add)){
 }
 ```
 
-
 ## Map CDS with Strain Average (Sex Interacting)
 
-We also used sex as an interacting covariate when
-mapping CDS.
+We also used sex as an interacting covariate when mapping CDS.
 
-```{r map_cds_avg_by_sex, warning = FALSE}
-#do not exclude zeros when using strain means. They
-#don't have the same spike in the distribution
-cds.avg.scans.sex.int <- map_pheno(mean.genoprobs, norm.mean.pheno, mean.K, 
+```{r sex_int}
+cds.avg.scans.sex.int <- map_pheno(mean.genoprobs, mean.pheno, mean.K, 
     exclude.zeros = FALSE, addcovar = mean.covar, intcovar = mean.covar,
     results.file = file.path(results.dir, "scan1_results_cds_avg_by_sex_int.RDS"))
 
 if(run_permutations){
     perm.groups <- strain.by.sex[,1]
     cds.avg.perm.sex <- perm_scans(map.geno = mean.genoprobs, 
-        map.pheno = norm.mean.pheno, map.k = mean.K,
+        map.pheno = mean.pheno, map.k = mean.K,
         scan1.results = cds.avg.scans.sex.add, addcovar = mean.covar, 
         groups = perm.groups, exclude.zeros = FALSE, nperm = nperm, 
         results.file = file.path(results.dir, "scan1perm_results_cds_avg_sex.RDS"))
 
     cds.avg.perm.sex.int <- perm_scans(map.geno = mean.genoprobs, 
-        map.pheno = norm.mean.pheno, map.k = mean.K, max.exp.lod = 40,
+        map.pheno = mean.pheno, map.k = mean.K, max.exp.lod = 40,
         scan1.results = cds.avg.scans.sex.int, addcovar = covar, intcovar = mean.covar,
         groups = perm.groups, exclude.zeros = FALSE, nperm = nperm,
         results.file = file.path(results.dir, "scan1perm_results_cds_avg_sex_int.RDS"))
@@ -1542,11 +1243,10 @@ if(run_permutations){
 
 ### Interactive and Additive Together {.tabset .tabset-fade .tabset-pills}
 
-The following plots show the two LOD traces plotted on the same
-plot with significance thresholds.
+The following plots show the two LOD traces plotted 
+on the same plot with significance thresholds.
 
-```{r plot_with_sig, fig.width = 9, fig.height = 5, results = "asis"}
-
+```{r add_int_overlay, results = "asis"}
 for(i in 1:length(cds.avg.scans.sex.int)){
     cat("####", names(cds.avg.scans.sex.int)[i],  "\n")
     if(run_permutations){
@@ -1565,21 +1265,21 @@ for(i in 1:length(cds.avg.scans.sex.int)){
     }
     cat("\n\n")
 }
-
 ```
 
 ### Interactive and Additive Differences {.tabset .tabset-fade .tabset-pills}
 
-The figures below show the LOD scores for the additive model 
-subtracted off the interactive model. The horizontal line
-is the maximum of the permuted values of the additive model
-subtracted off the maximum of the permuted values of the
-interactive model. This isn't exactly the significance threshold
-for a locus that significantly interacts with sex, but it 
-gives us a rough idea of where any interacting loci are
-most likely to reside.
+The figures below show the LOD scores for the 
+additive model subtracted off the interactive 
+model. The horizontal line is the maximum of the 
+permuted values of the additive model subtracted 
+off the maximum of the permuted values of the 
+interactive model. This isn’t exactly the significance 
+threshold for a locus that significantly interacts 
+with sex, but it gives us a rough idea of where any 
+interacting loci are most likely to reside.
 
-```{r int_test, fig.width = 9, fig.height = 5, results = "asis"}
+```{r add_int_diff, results = "asis"}
 for(i in 1:length(cds.avg.scans.sex.add)){
     cat("####", names(cds.avg.scans.sex.add)[i], "\n")
     int.diff <- cds.avg.scans.sex.int[[i]] - cds.avg.scans.sex.add[[i]]
@@ -1596,208 +1296,75 @@ for(i in 1:length(cds.avg.scans.sex.add)){
     }
     cat("\n\n")
 }
-
-
 ```
 
-## Incidence {.tabset .tabset-fade .tabset-pills}
+## Map Incidence with Strain Average
 
-Emily calculated an incidence level for each strain as a whole
-and separately by sex. Incidence values by strain are as follows.
+We also want to map incidence at the strain level. 
+The incidence matrices are split by sex and 
+combined across sexes.
 
-```{r incidence, fig.width = 5, fig.height = 7, results = "asis"}
-for(i in 1:length(incidence)){
-    cat("###", names(incidence)[i], "\n")
-    imageWithText(incidence[[i]], main = names(incidence)[i], use.pheatmap.colors = TRUE)
-    cat("\n\n")
-}
-```
-
-
-## Map Incidence
-
-We also want to map incidence at the strain level.
-There are three incidence matrices. One has the incidence
-for each strain overall. The other two are split by sex.
-
-We mapped the overall incidence per strain on its own.
-Then we combined the incidence matrices split by sex 
-so we could use sex as an additive and interactive 
-covariate as we did with CDS.
-
-
-```{r avg_geno_k}
+```{r inc_avg}
 #make genoprobs object and a kinship object for 
-#the combined incidence matrix
+#the incidence matrices.
 
 strain.genoprobs <- mean.genoprobs
 strain.K <- mean.K
 
 just.strain <- sapply(strsplit(rownames(mean.genoprobs[[1]]), "_"), function(x) x[1])
-all.cc.strains <- unique(just.strain)
-strain.idx <- match(mapping.strains, just.strain)
+u_strain <- unique(just.strain)
+strain.idx <- match(u_strain, just.strain)
 strain.idx <- strain.idx[which(!is.na(strain.idx))]
 
 for(i in 1:length(mean.genoprobs)){
     strain.genoprobs[[i]] <- mean.genoprobs[[i]][strain.idx,,]
-    rownames(strain.genoprobs[[i]]) <- mapping.strains
+    rownames(strain.genoprobs[[i]]) <- u_strain
     strain.K[[i]] <- mean.K[[i]][strain.idx, strain.idx]
-    rownames(strain.K[[i]]) <- colnames(strain.K[[i]]) <- mapping.strains
-}
-
-```
-
-Make an overall incidence per strain matrix
-and another that has both sexes in it so we 
-can play the additive/interactive game again.
-
-We rank Z normalized the columns of each matrix
-before mapping.
-
-```{r make_mats}
-incidence.strains <- rownames(incidence$incidence_strain)
-incidence.strains <- gsub("/", "", gsub(" ", "", incidence.strains))
-overall.inc <- apply(incidence$incidence_strain, 2, rankZ)
-
-inc.by.sex <- rbind(incidence$incidence_female, incidence$incidence_male)
-inc.by.sex <- apply(inc.by.sex, 2, rankZ)
-rownames(inc.by.sex) <- paste(incidence.strains, 
-    c(rep("F", nrow(incidence$incidence_female)), rep("M", nrow(incidence$incidence_male))), 
-    sep = "_")
-incidence.covar <- matrix(1, ncol = 1, nrow = nrow(inc.by.sex))
-incidence.covar[1:nrow(incidence$incidence_female)] <- 0
-rownames(incidence.covar) <- rownames(inc.by.sex)
-```
-
-```{r map_overall_inc, warning = FALSE}
-inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K, 
-    exclude.zeros = FALSE, 
-    results.file = file.path(results.dir, "scan1_results_overall_incidence.RDS"))
-
-if(run_permutations){    
-    incidence.overall.perm <- perm_scans(strain.genoprobs, overall.inc, strain.K,
-        inc.scan.overall, groups = NULL, exclude.zeros = FALSE, nperm = nperm,
-        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall.RDS")))   
+    rownames(strain.K[[i]]) <- colnames(strain.K[[i]]) <- u_strain
 }
 ```
 
-```{r map_inc_by_sex_add, warning = FALSE}
-inc.scan.sex.add <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
-    exclude.zeros = FALSE, addcovar = incidence.covar,
-    results.file = file.path(results.dir, "scan1_results_incidence_sex_add.RDS"))
+```{r inc_scan}
+norm.inc <- lapply(incidence, function(x) apply(x, 2, function(y) rankZ(y)))
 
-if(run_permutations){    
-    incidence.sex.add.perm <- perm_scans(mean.genoprobs, inc.by.sex, mean.K,
-        inc.scan.sex.add, addcovar = incidence.covar, groups = NULL, 
-        exclude.zeros = FALSE, nperm = nperm,
-        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_sex_add.RDS")))   
+
+incidence.scan <- lapply(norm.inc, function(x) map_pheno(strain.genoprobs, x, 
+    strain.K, exclude.zeros = FALSE, 
+    results.file = file.path(results.dir, "scan1_results_incidence.RDS")))
+
+if(run_permutations){
+    for(i in 1:length(incidence)){
+        incidence.perm <- perm_scans(strain.genoprobs, incidence[[i]], strain.K,
+            incidence.scan[[i]], groups = NULL, exclude.zeros = FALSE, nperm = nperm,
+            results.file = file.path(results.dir, paste0("scan1perm_results_", names(incidence)[i], ".RDS")))
+    }
 }
 ```
 
+### Incidence LOD traces
 
-```{r map_inc_by_sex_int, warning = FALSE}
-inc.scan.sex.int <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
-    exclude.zeros = FALSE, addcovar = incidence.covar, intcovar = incidence.covar,
-    results.file = file.path(results.dir, "scan1_results_incidence_sex_int.RDS"))
-
-if(run_permutations){    
-    incidence.sex.int.perm <- perm_scans(mean.genoprobs, inc.by.sex, mean.K,
-        inc.scan.sex.add, groups = NULL, exclude.zeros = FALSE, nperm = nperm,
-        addcovar = incidence.covar, intcovar = incidence.covar,
-        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_sex_int.RDS")))   
-}
-```
-
-
-### LOD traces: Incidence Overall {.tabset .tabset-fade .tabset-pills}
-
-```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+```{r inc_lod}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
-    fdr_summaries_incidence_overall <- plot_fdr_fun(inc.scan.overall, 
-    incidence.overall.perm, tab.level = "####")
-}else{    
-    for(i in 1:length(inc.scan.overall)){
-        cat("####", names(inc.scan.overall)[i], "\n")
-        plot(inc.scan.overall[[i]], map = map, main = names(inc.scan.overall)[i])
+    fdr_summaries_incidence <- vector(mode = "list", length = length(incidence))
+    names(fdr_summaries_incidence) <- names(incidence)
+    for(i in 1:length(incidence.scan)){
+        fdr_summaries_incidence[[i]] <- plot_fdr_fun(incidence.scan[[i]], incidence.perm[[i]],
+        tab.level = "####")
+    }
+}else{
+    for(i in 1:length(incidence.scan)){
+        cat("####", names(incidence.scan)[i], "{.tabset .tabset-fade .tabset-pills}\n")
+        for(j in 1:length(incidence.scan[[i]])){
+            cat("#####", names(incidence.scan[[i]])[j], "\n")
+            plot(incidence.scan[[i]][[j]], map = map)
+            cat("\n\n")
+        }
         cat("\n\n")
     }
 }
-
-#dev.off()
 ```
 
-
-### LOD Traces: Incidence With Sex Covariate {.tabset .tabset-fade .tabset-pills}
-
-
-```{r plot_inc_perm_both, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
-#pdf("~/Desktop/test.pdf")
-
-for(i in 1:length(inc.scan.sex.int)){
-    cat("####", names(inc.scan.sex.int)[i], "\n")
-    if(run_permutations){
-        ymax <- max(c(inc.scan.sex.int[[i]][,1]), fdr_summaries_incidence_sex_int[i,1:2])*1.05
-    }else{
-        ymax <- max(c(inc.scan.sex.int[[i]][,1]))*1.05
-    }
-    plot(inc.scan.sex.int[[i]], map = map, col = "red", 
-        main = names(inc.scan.sex.int)[i], ylim = c(0, ymax))
-    if(run_permutations){
-        abline(h = fdr_summaries_incidence_sex_int[i,1:2], lty = 1:2, col = "red")
-    }
-    plot(inc.scan.sex.add[[i]], map = map, add = TRUE)
-    if(run_permutations){
-        abline(h = fdr_summaries_incidence_sex_add[i,1:2], lty = 1:2, col = "darkblue")
-    }
-
-    diff.scan <- inc.scan.sex.int[[i]] - inc.scan.sex.add[[i]]
-    plot(diff.scan, map = map, main = "Interactive - Additive")
-    if(run_permutations){
-        int.p.dist <- -log10(incidence.sex.add.perm[[i]]$min_p)
-        add.p.dist <- -log10(incidence.sex.int.perm[[i]]$min_p)
-        mean.diff <- max(int.p.dist) - max(add.p.dist)
-        abline(h = mean.diff)
-    }
-
-    cat("\n\n")
-}
-
-
-#dev.off()
-```
-
-## Comparing Scans
-
-There is a question as to whther the scans of similar traits 
-in these conditions are sufficiently similar. EAE and 
-Classical incidence are correlated in terms of phenotype, 
-so their mapping should be similar. 
-
-The following plot shows a heatmap of the correlations between
-the incidence phenotypes.
-
-```{r trait_similarity, fig.width = 6, fig.height = 6}
-pheatmap(cor(inc.by.sex), display_numbers = TRUE, main = "Incidince Trait Correlations")
-```
-
-The following heatmap shows the correlations between
-the LOD traces. EAE and Classical are clustered in the LOD traces.
-
-```{r lod_cor, fig.width = 8, fig.height = 8}
-
-overall.lod.mat <- sapply(inc.scan.overall, function(x) x[,1])
-colnames(overall.lod.mat) <- paste0(colnames(overall.lod.mat), "_overall")
-sex.add.lod.mat <- sapply(inc.scan.sex.add, function(x) x[,1])
-colnames(sex.add.lod.mat) <- paste0(colnames(sex.add.lod.mat), "_additive")
-sex.int.lod.mat <- sapply(inc.scan.sex.int, function(x) x[,1])
-colnames(sex.int.lod.mat) <- paste0(colnames(sex.int.lod.mat), "_interactive")
-
-full.mat <- cbind(overall.lod.mat, sex.add.lod.mat, sex.int.lod.mat)
-pheatmap(cor(full.mat))
-
-```
-
-```{r compare_avg_ind, eval = FALSE}
+```{r compare, eval = FALSE}
 plot(cds.scans[[1]][,1], cds.avg.scans.sex.add[[1]][,1])
 ```

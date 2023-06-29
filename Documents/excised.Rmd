@@ -406,3 +406,53 @@ other batches. Although, because the variance is pretty
 high overall and the n in each group is fairly low, it 
 is hard to tell if these are systematic issues or just 
 random chance.
+
+## indexing issues
+
+
+```{r avg_vars, eval = FALSE}
+#generate genoprobs for each strain and sex combination
+
+
+#this code chunks give really different mapping results
+#than a previous chunk. I'm not sure which is right. 
+#for the other one, the individual and strain average 
+#mapping results are almost identical. For this one,
+#they are really different. For now we are assuming that
+#the similar results are the correct ones, but 
+#I'm keeping it for reference, and in case it is actually
+#correct.
+strain.by.sex <- cbind(rep(mapping.strains, each = 2), rep(c("F", "M"), length(mapping.strains)))
+ind.labels <- apply(strain.by.sex, 1, function(x) paste(x, collapse = "_"))
+mean.genoprobs <- mapping.genoprobs
+mean.K <- mapping.K
+for(i in 1:length(mean.genoprobs)){
+    strain.idx <- match(strain.by.sex[,1], mapping.strains)
+    mean.genoprobs[[i]] <- mapping.genoprobs[[i]][strain.idx,,]
+    rownames(mean.genoprobs[[i]]) <- ind.labels
+    mean.K[[i]] <- mapping.K[[i]][strain.idx, strain.idx]
+    rownames(mean.K[[i]]) <- colnames(mean.K[[i]]) <- ind.labels
+}
+
+mean.pheno <- matrix(NA, nrow = nrow(strain.by.sex), ncol = ncol(mapping.pheno))
+colnames(mean.pheno) <- colnames(mapping.pheno)
+test.list <- vector(mode = "list", length = nrow(strain.by.sex))
+for(i in 1:nrow(strain.by.sex)){
+    group.idx <- intersect(which(mapping.factors[,1] == strain.by.sex[i,1]), 
+        which(mapping.factors[,2] == strain.by.sex[i,2]))
+    test.list[[i]] <- mapping.pheno[group.idx,]
+    if(exclude.zeros){
+        group.mean <- apply(mapping.pheno[group.idx,], 2, function(x) mean(x[which(x != 0)]))
+    }else{
+        group.mean <- apply(mapping.pheno[group.idx,], 2, function(x) mean(x))
+    }
+    group.mean[which(is.na(group.mean))] <- 0 #accounts for 0 removal if that is specified
+    mean.pheno[i,] <- group.mean
+}
+rownames(mean.pheno) <- ind.labels
+#norm.mean.pheno <- apply(mean.pheno, 2, rankZ)
+norm.mean.pheno <- mean.pheno
+
+mean.covar <- matrix(as.numeric(as.factor(strain.by.sex[,2])), ncol = 1)
+rownames(mean.covar) <- ind.labels
+```

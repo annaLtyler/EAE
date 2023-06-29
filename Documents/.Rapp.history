@@ -1,0 +1,280 @@
+test <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/Transcription_Networks/Transcript_Cor_adipose_CC-RIX_Imputed.RDS")
+str(test)
+test <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/Transcription_Networks/Transcript_Cor_adipose_DO_Measured.RDS")
+test[1:10, 1:10]
+str(test)
+test
+test[1:10, 1:10]
+test <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/Transcription_Networks/Transcript_Cor_adipose_CC-RIX_Imputed.RDS")
+test[1:10, 1:10]
+str(test)
+?barplot
+test <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/Transcription_Networks/Transcript_Cor_adipose_CC-RIX_Imputed.RDS")
+test
+str(test)
+test <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/Transcription_Networks/Transcript_Cor_adipose_CC-RIX_Imputed.RDS")
+test
+str(test)
+?propagate
+??propagate
+library(propagate)
+?bigcor
+?unlink
+?file.remove
+?mtext
+?font
+??font
+?par
+?lm
+library(pheatmap)
+?pheatmap
+?anova
+library(sommer)
+data("DT_example")
+DT <- DT_example
+head(DT)
+?vsr
+??vsr
+ans2r <- mmer(Yield~Env,#
+              random= ~Name + vsr(dsr(Env),Name),#
+              rcov= ~ vsr(dsr(Env),units),#
+              data=DT, verbose = FALSE)
+install.packages("sommer")
+library(sommer)
+library(sommer) data(DT_example)#
+DT <- DT_example
+library(sommer); data(DT_example);#
+DT <- DT_example
+ans2r <- mmer(Yield~Env,#
+              random= ~Name + vsr(dsr(Env),Name),#
+              rcov= ~ vsr(dsr(Env),units),#
+              data=DT, verbose = FALSE)
+install.packages("sommer")
+install.packages("synapser")
+install.packages("synapser", repos = c("http://ran.synapse.org", "http://cran.fhcrc.org"))
+library(sommer)
+?A.mat
+?vsr
+devtools::install_github("Sage-Bionetworks/synapser", build_vignettes = TRUE)
+install.packages("devtools")
+devtools::install_github("Sage-Bionetworks/synapser", build_vignettes = TRUE)
+??tukey
+devtools::install_github("Sage-Bionetworks/synapser", build_vignettes = TRUE)
+install.packages("synapser")
+install.packages("synapser", repos = c("http://ran.synapse.org", "http://cran.fhcrc.org"))
+sessionInfo()
+PYTHON_CLIENT_VERSION <- '2.7.0'
+reticulate::py_install(c("requests", "pandas", "pysftp", "jinja2", "markupsafe"))
+?py_install
+conda_list()
+library(reticulate)
+conda_list()
+reticulate::py_install(c(paste("synapseclient==", PYTHON_CLIENT_VERSION, sep="")), pip=T)
+PYTHON_CLIENT_VERSION <- '2.7.1'
+reticulate::py_install(c(paste("synapseclient==", PYTHON_CLIENT_VERSION, sep="")), pip=T)
+reticulate::py_run_string("import synapseclient")
+c(paste("synapseclient==", PYTHON_CLIENT_VERSION, sep=""))
+reticulate::py_install("synapseclient", pip=T)
+PYTHON_CLIENT_VERSION <- '2.5.1'
+reticulate::py_install(c(paste("synapseclient==", PYTHON_CLIENT_VERSION, sep="")), pip=T)
+library(synapser)
+library(fgsea)
+?fgsea
+library(fgsea)
+?labs
+browseVignettes("fgsea")
+data(exampleRanks)
+head(exampleRanks)
+plot(exampleRanks)
+?fgsea
+a <-load('~/Documents/Projects/Islets/Islet_HDM/Data/Founders/dataset.Founder.Cube.multissue.RData')
+a
+str(dataset.Founders.Cube.Adipose)
+test <- read.csv("~/Downloads/results.csv", skip = 1)
+test
+t(test)
+?read_excel
+??read_excel
+install.packages("readxl")
+library(readxl)
+test <- read_excel("~/Documents/Projects/Islets/Islet_HDM/Data/Founders/glucose_26wk.xlsx")
+head(test)
+a <- load('~/Documents/Projects/Islets/Islet_HDM/Data/Founders/dataset.Founder.Cube.multissue.RData')
+a
+str(dataset.Founders.Cube.Islet)
+head(dataset.Founders.Cube.Islet$covar.matrix)
+head(dataset.Founders.Cube.Islet$annot.samples)
+(dataset.Founders.Cube.Islet$annot.samples)
+dim(dataset.Founders.Cube.Islet$annot.samples)
+dim(test)
+head(test)
+test[,2]
+as.vector(test[,2])
+?sva
+?svd
+local <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Data/imputed/Adjusted_Expression_DO_imputed_local.RDS")
+full <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Data/imputed/Adjusted_Expression_DO_imputed_genetic.RDS")
+distal <- lapply(1:length(local), function(x) full[[x]]-local[[x]])
+plot(local[1:1000], distal[1:1000])
+plot(local[[1]][1:1000], distal[[1]][1:1000])
+plot(local[[1]][1:10000], distal[[1]][1:10000])
+model.full <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/High_Dim_Med/tissue_together-full_imp-_-complete_mediation/Model_Scores.RDS")
+model.local <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/High_Dim_Med/tissue_together-local_imp-_-complete_mediation/Model_Scores.RDS")
+head(model.full[[1]])
+head(model.local[[1]])
+plot(model.full[[1]], model.local[[1]])
+full.loadings <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/High_Dim_Med/tissue_together-full_imp-_-complete_mediation/Loadings_Transcripts.RDS")
+local.loadings <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/High_Dim_Med/tissue_together-local_imp-_-complete_mediation/Loadings_Transcripts.RDS")
+str(local.loadings)
+str(full.loadings)
+plot(full.loadings[[1]], local.loadings[[1]])
+trait.loadings <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Results/High_Dim_Med/tissue_together-local_imp-_-complete_mediation/Loadings_Traits.RDS")
+str(trait.loadings)
+??BGLR
+install.packages("BGLR")
+library(qtl2)
+?find_marker
+tissue.names = c("Adipose", "Islet", "Liver", "SkeletalMuscle")
+paste0("Imputed_Expr_", tissue.names, ".RDS")
+library(qtl2)
+?est_herit
+library(qtl2)
+?est_herit
+page(est_herit)
+page(calc_hsq_clean)
+page(qtl2:::calc_hsq_clean)
+install.packages("devtools")#
+devtools::install_github("jiabowang/GAPIT3",force=TRUE)#
+library(GAPIT3)
+install.packages("LDHeatmap")
+BiocManager::install("snpStats")
+devtools::install_github("jiabowang/GAPIT3",force=TRUE)
+?GAPIT
+??GAPIT
+page("GAPIT")
+page(GAPIT)
+library(GAPIT)
+page(GAPIT)
+myPhenoFile <- system.file("extdata", "mdp_traits.txt.gz", package = "GAPIT3")
+myPhenoFile
+myGenoFile <- system.file("extdata", "mdp_genotype_test.hmp.txt.gz", package = "GAPIT3")
+myPhenotypes <- read.table(myPhenoFile, header = TRUE)
+myGenoFile
+?system.file
+rdir <- "/Users/atyler/Library/R/x86_64/4.3/library/GAPIT/extdata"
+myPhenoFile <- file.path(rdir, "mdp_traits.txt.gz")
+myPhenoFile
+myGenoFile <- file.path(rdir, "mdp_genotype_test.hmp.txt.gz")
+myPhenotypes <- read.table(myPhenoFile, header = TRUE)
+myGenotypes  <- read.table(myGenoFile, header = FALSE)
+myPhenotypes
+myGAPIT <- GAPIT(#
+  Y = myPhenotypes,#
+  G = myGenotypes,#
+  PCA.total = 3,#
+  file.output = FALSE,#
+  model = "MLM"#
+)
+library(qtl2)
+?fit1
+?page(fit1)
+page(fit1)
+page(qtl2:::fit1_pg)
+??setNames
+?page(qtl2::: fit1_pg_addcovar)
+page(qtl2::: fit1_pg_addcovar)
+page(qtl2::: calc_hsq_clean)
+page(qtl2::: Rcpp_fitLMM_mat)
+page(qtl2:::fit1_pg_addcovar)
+page(qtl2:::_fit1_pg_addcovar)
+expr <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Data/DO/Tissue_Expression_Adjusted.RDS")
+kin <- readRDS("~/Documents/Projects/Islets/Islet_HDM/Data/DO/overall.kinship.RDS")
+library(GAPIT)
+ki <- data.frame(rownames(kin), kin)
+pheno <- data.frame(rownames(expr[[1]]), expr[[1]][,1])
+?GAPIT
+test <- GAPIT(Y = pheno, KI = ki)
+page(GAPIT)
+str(test)
+names(test)
+str(test$Pred)
+pred <- test$Pred
+str(test)
+results <- test$Pred
+names(results)
+pred <- results$Prediction
+hist(pred)
+plot(pred, pheno)
+length(pheno)
+str(pheno)
+plot(pred, pheno[,1])
+dim(pheno)
+dim(pred)
+str(pred)
+names(pred) <- rownames(ki)
+common.ind <- intersect(rownames(ki), pheno[,1])
+common.ind
+plot(pred[common.ind], pheno[common.ind,1])
+pred[common.ind]
+pheno[common.ind,1]
+pheno[common.ind,2]
+plot(pred[common.ind], pheno[common.ind,2])
+source('~/Documents/Projects/Islets/Islet_HDM/Code/plot.with.model.R')
+plot.with.model(pred[common.ind], pheno[common.ind,2])
+pheno <- data.frame(rownames(expr[[1]]), expr[[1]][,7])
+test <- GAPIT(Y = pheno, KI = ki)
+test$h2
+results <- test$Pred
+pred <- results$Prediction
+names(pred) <- rownames(ki)
+common.ind <- intersect(rownames(ki), pheno[,1])
+plot.with.model(pred[common.ind], pheno[common.ind,2])
+var.expr <- plot.with.model(pred[common.ind], pheno[common.ind,2])
+var.expr
+var.exp <- plot.with.model(pred[common.ind], pheno[common.ind,2])
+var.exp
+str(results)
+pheno <- data.frame(rownames(expr[[1]]), expr[[1]][,8])
+test <- GAPIT(Y = pheno, KI = ki)
+test$h2
+results <- test$Pred
+pred <- results$Prediction
+names(pred) <- rownames(ki)
+common.ind <- intersect(rownames(ki), pheno[,1])
+var.exp <- plot.with.model(pred[common.ind], pheno[common.ind,2])
+var.exp
+pheno <- data.frame(rownames(expr[[1]]), expr[[1]][,9])#
+#
+test <- GAPIT(Y = pheno, KI = ki)#
+h2 <- test$h2
+h2
+results <- test$Pred#
+pred <- results$Prediction#
+names(pred) <- rownames(ki)
+common.ind <- intersect(rownames(ki), pheno[,1])#
+var.exp <- plot.with.model(pred[common.ind], pheno[common.ind,2])
+var.exp
+pheno <- data.frame(rownames(expr[[1]]), expr[[1]][,10])#
+#
+test <- GAPIT(Y = pheno, KI = ki)#
+h2 <- test$h2
+h2
+results <- test$Pred#
+pred <- results$Prediction#
+names(pred) <- rownames(ki)#
+#
+common.ind <- intersect(rownames(ki), pheno[,1])#
+var.exp <- plot.with.model(pred[common.ind], pheno[common.ind,2])
+head(results)
+pairs(results[,5:8])
+hist(results[,"BLUP"])
+hist(results[,"Prediction"])
+plot(test)
+setwd("~/Documents/Projects/EAE/")
+list.files()
+setwd("Documents/")
+library(rmarkdown)
+render("Mapping_EAE_traits.Rmd")
+results.dir
+render("Mapping_EAE_traits.Rmd")
+render("Mapping_EAE_traits.Rmd")
