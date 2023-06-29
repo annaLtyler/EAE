@@ -53,9 +53,13 @@ line without entries. The files are:
 ```{r get_arguments}
 args <- commandArgs(trailingOnly=T)
 
-b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
-batch_as_covar <- as.logical(args[2]) #use batch as a covariate
-rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
+#b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
+#batch_as_covar <- as.logical(args[2]) #use batch as a covariate
+#rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
+
+b6_correction <- FALSE
+batch_as_covar <- TRUE
+rank_norm <- TRUE
 
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
@@ -87,7 +91,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "April_2023" #date for incidence csv files to use in format month_year
 
-nperm = 0
+nperm = 100
 ```
 
 ## Parameters
@@ -1545,23 +1549,30 @@ if(run_permutations){
 The following plots show the two LOD traces plotted on the same
 plot with significance thresholds.
 
-```{r plot_with_sig, fig.width = 9, fig.height = 5, results = "asis"}
+```{r plot_with_sig, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
 
 for(i in 1:length(cds.avg.scans.sex.int)){
     cat("####", names(cds.avg.scans.sex.int)[i],  "\n")
     if(run_permutations){
-        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), cds.avg.perm.sex[i,1:2])*1.05
-    }else{
+        sig.levels.int <- fdr_summarize(cds.avg.perm.sex.int[[i]], fdr_cl = 0.95, 
+            geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
+            plot = FALSE)
+        sig.levels.add <- fdr_summarize(cds.avg.perm.sex[[i]], fdr_cl = 0.95, 
+            geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
+            plot = FALSE)
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), sig.levels[1])*1.05
+    }
+    if(!run_permutations || !is.finite(ymax)){
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]))*1.05
     }
     plot(cds.avg.scans.sex.int[[i]], map = map, col = "red", 
         main = names(cds.avg.scans.sex.add)[i], ylim = c(0, ymax))
     if(run_permutations){
-        abline(h = cds.avg.perm.sex[i,1:2], lty = 1:2, col = "red")
+        abline(h = sig.levels, lty = 1:2, col = "red")
     }
     plot(cds.avg.scans.sex.add[[i]], map = map, add = TRUE)
     if(run_permutations){
-        abline(h = cds.avg.perm.sex[i,1:2], lty = 1:2, col = "darkblue")
+        abline(h = sig.levels.add, lty = 1:2, col = "darkblue")
     }
     cat("\n\n")
 }
