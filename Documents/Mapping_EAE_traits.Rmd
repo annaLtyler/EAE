@@ -80,7 +80,7 @@ add_founder_genotypes <- FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
-run_permutations <- TRUE
+run_permutations <- FALSE
 
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
@@ -1100,12 +1100,28 @@ barplot_with_num(round(ind.herit, 2), ylab = "Heritability", xlab = "",
 ```
 
 ```{r mapping_fun}
-
+#We have run into problems with extremely small variance
+#in genotype probabilities leading to large LOD scores.
+#round.digs attempts to solve this by rounding all 
+#genotype probabilities to the specified number of 
+#significant figures. All CC lines should be either 1 or
+#0 at every locus, so 2 digits should be sufficient to 
+#get any errant heterozygotes, but also squash out very
+#small variations
 map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
     intcovar = NULL, groups = NULL, exclude.zeros = TRUE, 
+    round.digs = 2,
     results.file = file.path(results.dir, "scan1_results.RDS")){
 
     if(!file.exists(results.file) || overwrite_previous){
+
+        #round the genotypes so low-variance markers don't lead
+        #to large QTL LOD scores
+        rounded.geno <- map.geno
+        for(chr in 1:length(rounded.geno)){
+            rounded.geno[[chr]] <- round(map.geno[[chr]], round.digs)
+        }
+
         pheno.scans <- vector(mode = "list", length = ncol(map.pheno))
         names(pheno.scans) <- colnames(map.pheno)
         for(ph in 1:ncol(map.pheno)){
@@ -1114,7 +1130,8 @@ map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
             }else{
                 nonzero.idx <- 1:nrow(map.pheno)
             }
-            pheno.scans[[ph]] <- scan1(map.geno, map.pheno[nonzero.idx,ph], 
+
+            pheno.scans[[ph]] <- scan1(rounded.geno, map.pheno[nonzero.idx,ph], 
                 addcovar = addcovar, intcovar = intcovar, kinship = map.K)
             #plot(pheno.scans[[ph]], map = map)
         }
@@ -1129,7 +1146,7 @@ map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
 perm_scans <- function(map.geno, map.pheno, map.k, scan1.results, 
     addcovar = NULL, intcovar = NULL, groups = NULL, nperm = nperm, 
     max.exp.lod = 20, n.founders = 8, exclude.zeros = TRUE, 
-    results.file = file.path(results.dir, "perm.RDS")){
+    results.file = file.path(results.dir, "perm.RDS"), round.digs = 2){
 
     #permutations for Matt's FDR method (see https://github.com/j-matthew-mahoney/cdf-fdrci.git)
     #right now this does one phenotype at a time, but we can change that later.
@@ -1137,6 +1154,13 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
     nind = nrow(map.pheno)
     #bin possible LOD scores
     breaks = lod2p(seq(max.exp.lod, 0, -0.01), nind = nind, k = n.founders)
+
+    #round the genotypes to get rid of very small variances that
+    #lead to large QTL LOD scores
+    rounded.geno <- map.geno
+    for(chr in 1:length(rounded.geno)){
+        rounded.geno[[chr]] <- round(map.geno[[chr]], round.digs)
+    }
 
     if(!file.exists(results.file)){
         for(ph in 1:ncol(map.pheno)){
@@ -1146,14 +1170,14 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
                 nonzero.idx <- 1:nrow(map.pheno)
             }
             if(!is.null(groups)){
-                null_stats = scan1_groupperm_stats(map.geno, 
+                null_stats = scan1_groupperm_stats(rounded.geno, 
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
                     groups = groups[nonzero.idx],
                     kinship = map.k, nperm = nperm, breaks = breaks, 
                     addcovar = addcovar, intcovar = intcovar,
                     scan1_out = scan1.results[[ph]][,1,drop=FALSE], cores = cores)
             }else{
-                null_stats = scan1perm_stats(map.geno, 
+                null_stats = scan1perm_stats(rounded.geno, 
                     pheno = map.pheno[nonzero.idx,ph,drop=FALSE], 
                     kinship = map.k, nperm = nperm, breaks = breaks,
                     addcovar = addcovar, intcovar = intcovar,
@@ -1209,11 +1233,18 @@ select_threshold <- function(scan.results, fdr_summaries){
 
 allele_coef <- function(map.geno, map.pheno, map.k, addcovar = NULL,
     intcovar = NULL, scan.results, lod.threshold, exclude.zeros, 
-    chr.lod.file, chr.coef.file){
+    chr.lod.file, chr.coef.file, round.digs = 2){
 
     peak.table <- lapply(1:length(scan.results), 
         function(x) find_peaks(scan.results[[x]], map = map, 
         threshold = lod.threshold[x]))
+
+    #round genotypes to reduce risk of low-variance alleles
+    #leading to large QTL LOD scores
+    rounded.geno <- map.geno
+    for(chr in 1:length(rounded.geno)){
+        rounded.geno[[chr]] <- round(map.geno[[chr]], round.digs)
+    }
 
     if(!file.exists(chr.lod.file) || overwrite_previous){
         chr.lod <- chr.coef <- vector(mode = "list", length = nrow(Reduce("rbind", peak.table)))
@@ -1231,14 +1262,15 @@ allele_coef <- function(map.geno, map.pheno, map.k, addcovar = NULL,
                     }else{
                         nonzero.idx <- 1:nrow(map.pheno)
                     }
-                    chr.scan <- scan1(map.geno[,chr], 
+
+                    chr.scan <- scan1(rounded.geno[,chr], 
                         map.pheno[nonzero.idx,ph,drop=FALSE], 
                         kinship = map.k[[chr.locale]], addcovar = addcovar,
                         intcovar = intcovar)
                     chr.lod[[idx]] <- chr.scan
                     #plot(chr.scan, map = map);abline(v = peak.loc)
 
-                    effects.scan <- scan1blup(map.geno[,chr], 
+                    effects.scan <- scan1blup(rounded.geno[,chr], 
                         map.pheno[nonzero.idx,ph,drop=FALSE], 
                         kinship = map.k[[chr.locale]], addcovar = addcovar)
                     chr.coef[[idx]] <- effects.scan
@@ -1560,7 +1592,7 @@ for(i in 1:length(cds.avg.scans.sex.int)){
         sig.levels.add <- fdr_summarize(cds.avg.perm.sex.add[[i]], fdr_cl = 0.95, 
             geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
-        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]), sig.levels.add[1], sig.levels.int[1])*1.05
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1], sig.levels.add[1], sig.levels.int[1]), na.rm = TRUE)*1.05
     }
     if(!run_permutations || !is.finite(ymax)){
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]))*1.05
@@ -1617,6 +1649,7 @@ Emily calculated an incidence level for each strain as a whole
 and separately by sex. Incidence values by strain are as follows.
 
 ```{r incidence, fig.width = 5, fig.height = 7, results = "asis"}
+
 for(i in 1:length(incidence)){
     cat("###", names(incidence)[i], "\n")
     imageWithText(incidence[[i]], main = names(incidence)[i], use.pheatmap.colors = TRUE)
@@ -1734,9 +1767,11 @@ if(run_permutations){
     fdr_summaries_incidence_overall <- plot_fdr_fun(inc.scan.overall, 
     incidence.overall.perm, tab.level = "####")
 }else{    
+    ymax <- max(sapply(inc.scan.overall, function(x) max(x[,1])))*1.05
     for(i in 1:length(inc.scan.overall)){
         cat("####", names(inc.scan.overall)[i], "\n")
-        plot(inc.scan.overall[[i]], map = map, main = names(inc.scan.overall)[i])
+        plot(inc.scan.overall[[i]], map = map, main = names(inc.scan.overall)[i], 
+            ylim = c(0, ymax))
         cat("\n\n")
     }
 }
@@ -1786,7 +1821,7 @@ for(i in 1:length(inc.scan.sex.int)){
 
 ## Comparing Scans
 
-There is a question as to whther the scans of similar traits 
+There is a question as to whether the scans of similar traits 
 in these conditions are sufficiently similar. EAE and 
 Classical incidence are correlated in terms of phenotype, 
 so their mapping should be similar. 
@@ -1794,12 +1829,96 @@ so their mapping should be similar.
 The following plot shows a heatmap of the correlations between
 the incidence phenotypes.
 
-```{r trait_similarity, fig.width = 6, fig.height = 6}
-pheatmap(cor(inc.by.sex), display_numbers = TRUE, main = "Incidince Trait Correlations")
+```{r inc_cor, fig.width = 6, fig.height = 6}
+inc.cor <- cor(overall.inc, use = "pairwise.complete.obs", method = "spearman")
+trait.order <- hclust(dist(inc.cor))$order
+pheatmap(inc.cor[trait.order, trait.order], display_numbers = TRUE, 
+    main = "Incidence Trait Correlations", cluster_cols = FALSE, cluster_rows = FALSE)
 ```
 
+```{r eval = FALSE}
+plot.with.model(inc.scan.overall$"Classical.only"[,1], inc.scan.overall$"AR.only"[,1],
+    xlab = "Classical Only LOD", ylab = "AR Only LOD")
+
+#look at individual large QTL to see if they look spurious
+trait.name <- "EAE"
+trait.idx <- which(names(inc.scan.overall) == trait.name)
+max.qtl <- which.max(inc.scan.overall[[trait.idx]][,1])
+max.marker <- rownames(inc.scan.overall[[trait.idx]])[max.qtl]
+
+#test a random marker
+#max.marker <- sample(rownames(inc.scan.overall[[trait.idx]]), 1)
+
+marker.pos <- find_markerpos(map, max.marker)
+marker.geno <- pull_genoprobpos(strain.genoprobs, marker = max.marker)
+
+common.strains <- intersect(rownames(overall.inc), rownames(marker.geno))
+annot.df <- data.frame(overall.inc[common.strains,trait.idx,drop=FALSE])
+
+trait.order <- order(annot.df[,1])
+ordered.names <- common.strains[trait.order]
+pheatmap(marker.geno[ordered.names,], annotation_row = annot.df,
+    cluster_rows = FALSE, cluster_cols = FALSE, 
+    main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
+    signif(marker.pos[,"pos"], 2), "Mb"))
+
+model <- fit1(round(marker.geno, 2), overall.inc[,trait.idx,drop=FALSE])
+model$lod
+barplot(model$coef)
+
+strain.effects <- apply(round(marker.geno[common.strains,], 2), 2, function(x) annot.df[which(x > 0),1])
+strain.order <- order(sapply(strain.effects, function(x) median(x, na.rm = TRUE)))
+boxplot(strain.effects[strain.order], col = CCcolors[strain.order])
+abline(h = 0)
+```
+
+The following heatmap shows the correlation between
+the maps of incidence. Compare this to the correlation
+between measured traits. The maps are less correlated
+than the traits, but the pattern of correlations are
+very similar.
+
+```{r map_cor, fig.width = 6, fig.height = 6}
+map.mat <- sapply(inc.scan.overall, function(x) x[,1])
+map.cor <- cor(map.mat, use = "pairwise.complete.obs", method = "spearman")
+
+pheatmap(map.cor[trait.order, trait.order], 
+    display_numbers = TRUE, cluster_rows = FALSE, cluster_cols = FALSE)
+```
+
+The following plot shows how the mapping and trait correlations
+relate to each other. For the most part they are very similar.
+The correlations between trait pairs tend to be higher than 
+the correlations between mapping pairs, which is what we 
+expect. The diagonal line shows y = x, and the horizontal 
+and vertical lines show y = 0, and x = 0 respectively.
+
+For the Classical-AR pairs, however, the correlation between
+the maps is much higher than the correlations between the traits.
+I'm not sure why that would be.
+
+```{r compare_cor, fig.width = 6, fig.height = 6}
+trait.pairs <- pair.matrix(colnames(map.mat))
+map.trait.cor <- matrix(NA, nrow = nrow(trait.pairs), ncol = 2)
+colnames(map.trait.cor) <- c("Trait Correlation", "Mapping Correlation")
+for(i in 1:nrow(trait.pairs)){
+    map.trait.cor[i,1] <- inc.cor[trait.pairs[i,1], trait.pairs[i,2]]
+    map.trait.cor[i,2] <- map.cor[trait.pairs[i,1], trait.pairs[i,2]]
+}
+pair.names <- apply(trait.pairs, 1, function(x) paste(x, collapse = "-"))
+plot(map.trait.cor, pch = 16, ylim = c(-0.2, 0.8), xlim = c(-0.6, 1))
+abline(0,1)
+abline(h = 0, v = 0)
+text(map.trait.cor[,1], map.trait.cor[,2], labels = pair.names, pos = 4,
+    cex = 0.5)
+
+```
+
+
 The following heatmap shows the correlations between
-the LOD traces. EAE and Classical are clustered in the LOD traces.
+the all mapping run above, including with sex as an
+interactive covariate.. EAE and Classical are clustered 
+in the LOD traces.
 
 ```{r lod_cor, fig.width = 8, fig.height = 8}
 
@@ -1818,3 +1937,6 @@ pheatmap(cor(full.mat))
 ```{r compare_avg_ind, eval = FALSE}
 plot(cds.scans[[1]][,1], cds.avg.scans.sex.add[[1]][,1])
 ```
+
+
+
