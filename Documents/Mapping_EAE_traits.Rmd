@@ -57,9 +57,18 @@ b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
 batch_as_covar <- as.logical(args[2]) #use batch as a covariate
 rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
 
-b6_correction <- FALSE
-batch_as_covar <- TRUE
-rank_norm <- TRUE
+#===============================================================
+#hard code the final decisions on corrections and normalizations
+#set final_param to FALSE to use the arguments again
+#===============================================================
+final_param = TRUE
+
+if(final_param){
+    b6_correction <- FALSE
+    batch_as_covar <- TRUE
+    rank_norm <- TRUE
+}
+#===============================================================
 
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
