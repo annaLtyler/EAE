@@ -1716,7 +1716,7 @@ rownames(incidence.covar) <- rownames(inc.by.sex)
 ```{r no_perm}
 #set run_permutations to FALSE
 #we are not ready to run permutations on incidence yet
-run_permutations = FALSE
+#run_permutations = FALSE
 ```
 
 ```{r map_overall_inc, warning = FALSE}
@@ -1836,41 +1836,7 @@ pheatmap(inc.cor[trait.order, trait.order], display_numbers = TRUE,
     main = "Incidence Trait Correlations", cluster_cols = FALSE, cluster_rows = FALSE)
 ```
 
-```{r eval = FALSE}
-plot.with.model(inc.scan.overall$"Classical.only"[,1], inc.scan.overall$"AR.only"[,1],
-    xlab = "Classical Only LOD", ylab = "AR Only LOD")
 
-#look at individual large QTL to see if they look spurious
-trait.name <- "EAE"
-trait.idx <- which(names(inc.scan.overall) == trait.name)
-max.qtl <- which.max(inc.scan.overall[[trait.idx]][,1])
-max.marker <- rownames(inc.scan.overall[[trait.idx]])[max.qtl]
-
-#test a random marker
-#max.marker <- sample(rownames(inc.scan.overall[[trait.idx]]), 1)
-
-marker.pos <- find_markerpos(map, max.marker)
-marker.geno <- pull_genoprobpos(strain.genoprobs, marker = max.marker)
-
-common.strains <- intersect(rownames(overall.inc), rownames(marker.geno))
-annot.df <- data.frame(overall.inc[common.strains,trait.idx,drop=FALSE])
-
-trait.order <- order(annot.df[,1])
-ordered.names <- common.strains[trait.order]
-pheatmap(marker.geno[ordered.names,], annotation_row = annot.df,
-    cluster_rows = FALSE, cluster_cols = FALSE, 
-    main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
-    signif(marker.pos[,"pos"], 2), "Mb"))
-
-model <- fit1(round(marker.geno, 2), overall.inc[,trait.idx,drop=FALSE])
-model$lod
-barplot(model$coef)
-
-strain.effects <- apply(round(marker.geno[common.strains,], 2), 2, function(x) annot.df[which(x > 0),1])
-strain.order <- order(sapply(strain.effects, function(x) median(x, na.rm = TRUE)))
-boxplot(strain.effects[strain.order], col = CCcolors[strain.order])
-abline(h = 0)
-```
 
 The following heatmap shows the correlation between
 the maps of incidence. Compare this to the correlation
@@ -1938,5 +1904,97 @@ pheatmap(cor(full.mat))
 plot(cds.scans[[1]][,1], cds.avg.scans.sex.add[[1]][,1])
 ```
 
+## Large QTL Allele Effects {.tabset .tabset-fade .tabset-pills}
+
+There are some larger QTL in the incidence scans. Here we look
+at some of the allele effects to get an idea of how robust these
+QTL are.
+
+```{r large_qtl_allele_effects}
+#plot.with.model(inc.scan.overall$"Classical.only"[,1], inc.scan.overall$"AR.only"[,1],
+#    xlab = "Classical Only LOD", ylab = "AR Only LOD")
+
+#look at individual large QTL to see if they look spurious
+plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno, 
+    mapping.K, map, scan.results, chr = NULL, round.digs = 2){
+    
+    scan.trait.idx <- which(names(scan.results) == trait.name)
+    pheno.trait.idx <- which(colnames(mapping.pheno) == trait.name)
+
+    #if no chromosome is specified, take the largest overall LOD score
+    if(is.null(chr)){
+        max.marker <- names(which.max(scan.results[[scan.trait.idx]][,1]))
+    }else{
+        chr.idx <- which(names(mapping.geno) == chr)
+        marker.chr <- dimnames(mapping.geno[[chr.idx]])[[3]]
+        max.marker <- names(which.max(scan.results[[scan.trait.idx]][marker.chr,1]))
+    }
+
+    #test a random marker
+    #max.marker <- sample(rownames(inc.scan.overall[[trait.idx]]), 1)
+
+    marker.pos <- find_markerpos(map, max.marker)
+    marker.geno <- round(pull_genoprobpos(mapping.geno, marker = max.marker), 
+        round.digs)
+    chr.idx <- which(names(map) == marker.pos[,"chr"])
+
+    common.strains <- intersect(rownames(mapping.pheno), rownames(marker.geno))
+    annot.df <- data.frame(mapping.pheno[common.strains,pheno.trait.idx,drop=FALSE])
+
+    trait.order <- order(annot.df[,1])
+    ordered.names <- common.strains[trait.order]
+
+    model <- fit1(marker.geno, mapping.pheno[,pheno.trait.idx,drop=FALSE], 
+        kinship = mapping.K[[chr.idx]])
+    marker.lod <- model$lod
+    #barplot(model$coef)
+
+    strain.effects <- apply(marker.geno[common.strains,], 2, function(x) annot.df[which(x > 0),1])
+    strain.order <- order(sapply(strain.effects, function(x) median(x, na.rm = TRUE)))
+
+    pheatmap(marker.geno[ordered.names,strain.order], annotation_row = annot.df,
+        cluster_rows = FALSE, cluster_cols = FALSE, 
+        main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
+        signif(marker.pos[,"pos"], 2), "Mb"))
 
 
+    boxplot(strain.effects[strain.order], col = CCcolors[strain.order],
+        main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
+        signif(marker.pos[,"pos"], 2), "Mb\nLOD =", signif(marker.lod, 2)),
+        ylab = trait.name)
+    abline(h = 0)
+}
+```
+
+### EAE
+
+```{r eae_allele_effects}
+trait.name = "EAE"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
+    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+    scan.results = inc.scan.overall)
+#dev.off()
+```
+
+### Combined Type
+
+```{r combined_allele_effects}
+trait.name = "Combined.Type"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
+    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+    scan.results = inc.scan.overall)
+#dev.off()
+```
+
+### Classical Only
+
+```{r classical_allele_effects}
+trait.name = "Classical.only"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
+    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+    scan.results = inc.scan.overall)
+#dev.off()
+```
