@@ -1792,6 +1792,24 @@ if(run_permutations){
 ### LOD Traces: Incidence With Sex Covariate {.tabset .tabset-fade .tabset-pills}
 
 
+```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+#pdf("~/Desktop/test.pdf")
+if(run_permutations){
+    fdr_summaries_incidence_sex_int <- plot_fdr_fun(inc.scan.sex.int, 
+    inc.scan.sex.int.perm, tab.level = "####")
+}else{    
+    ymax <- max(sapply(inc.scan.sex.int, function(x) max(x[,1])))*1.05
+    for(i in 1:length(inc.scan.sex.int)){
+        cat("####", names(inc.scan.sex.int)[i], "\n")
+        plot(inc.scan.sex.int[[i]], map = map, main = names(inc.scan.sex.int)[i], 
+            ylim = c(0, ymax))
+        cat("\n\n")
+    }
+}
+
+#dev.off()
+```
+
 ```{r plot_inc_perm_both, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 
