@@ -1792,7 +1792,7 @@ if(run_permutations){
 ### LOD Traces: Incidence With Sex Covariate {.tabset .tabset-fade .tabset-pills}
 
 
-```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+```{r plot_perm_inc, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
     fdr_summaries_incidence_sex_int <- plot_fdr_fun(inc.scan.sex.int, 
