@@ -1,0 +1,510 @@
+---
+title: "Prioritization"
+author: Anna L Tyler
+date: '`r format(Sys.Date(), "%B %d, %Y")`'
+output: 
+  html_document:
+    code_folding: hide
+    collapsed: no
+    toc: yes
+    toc_float: yes
+bibliography: eae.bib
+---
+
+
+## Introduction
+
+This workflow attempts to prioritize genes in QTL identified
+in Mapping_EAE_traits.Rmd
+
+
+I downloaded GWAS results associated with Multiple Sclerosis
+from the GWAS catalog on September 21, 2023. We will use
+the genes associated with the most significant SNPs for 
+our prioritization.
+
+```{r setup}
+rm(list = ls())
+library(here)
+
+args <- commandArgs(trailingOnly=T)
+tissue.type = args[1]
+lookup.genes <- as.logical(args[2]) #whether to do pubmed query at end
+
+num.ms.genes <- 500
+
+if(is.null(tissue.type) || is.na(tissue.type)){
+    tissue.type = "central nervous system"; lookup.genes = FALSE
+    #tissue.type = "hemolymphoid system"; lookup.genes = FALSE
+    #tissue.type = "spleen"; lookup.genes = FALSE
+}
+
+
+#there is a lot of nesting in the directory structure, which is 
+#for when we are running multiple modules and multiple traits, 
+#and all that. It's excessive here, but it's the way the TRiAGE
+#functions are written
+project.name = "QTL_Prioritization"
+
+results.dir <- here("Results", "Prioritization", paste0(gsub(" ", "_", tissue.type, "_network")))
+
+if(!file.exists(results.dir)){dir.create(results.dir, recursive = TRUE)}
+```
+
+This workflow uses the `r tissue.type` network.
+
+```{r load_code}
+all.fun <- list.files(here("Code"), full.names = TRUE, pattern = ".R")
+for(i in 1:length(all.fun)){source(all.fun[i])}
+```
+
+
+```{r load_libraries, warning = FALSE, error = FALSE, message = FALSE, echo = FALSE}
+needed.libraries <- c("Matrix", "knitr", "here", "igraph", "DescTools", "pheatmap", 
+"e1071", "parallel", "doParallel", "gprofiler2", "clusterProfiler", "DT", "easyPubMed",
+"plotly", "qtl2", "cluster") 
+load_libraries(needed.libraries)
+n.cores <- detectCores() - 1
+```
+
+## GWAS
+
+The following plot shows the distribution of -log10(p values)
+for the genes in this list with a subset of the genes labeled.
+We took the top `r num.ms.genes` for training and prioritization.
+
+```{r gwas}
+gwas <- read.delim(here("Data", "human", "gwas-association-downloaded_2023-09-21-EFO_0009585-withChildTraits.tsv"))
+mapped.gene <- gwas[,"MAPPED_GENE"]
+reported.gene <- gwas[,"REPORTED.GENE.S."]
+pvals <- gwas[,"P.VALUE"]
+gene.table <- cbind(mapped.gene, reported.gene, pvals)
+
+#find all p values for each gene
+split.mapped <- multi.strsplit(mapped.gene, c(", ", " - ", "; "))
+split.reported <- multi.strsplit(reported.gene, c(", ", " - ", "; "))
+u_genes <- unique(split.mapped, split.reported)
+
+all.gene.p <- vector(mode = "list", length = length(u_genes))
+names(all.gene.p) <- u_genes
+for(g in 1:length(u_genes)){
+    gene.p <- NULL
+    mapped.idx <- grep(u_genes[g], mapped.gene)
+    if(length(mapped.idx) > 0){
+        gene.p <- c(gene.p, pvals[mapped.idx])
+    }
+    
+    reported.idx <- grep(u_genes[g], reported.gene)
+    if(length(reported.idx) > 0){
+        gene.p <- c(gene.p, pvals[reported.idx])
+    }
+    all.gene.p[[g]] <- gene.p
+}
+
+neg.log.gene <- lapply(all.gene.p, function(x) -log10(x))
+gene.order <- order(sapply(neg.log.gene, mean), decreasing = FALSE)
+
+par(mar = c(4,6,4,4))
+boxplot(neg.log.gene[gene.order], las = 2, horizontal = TRUE, cex.names = 0.5)
+
+top.genes <- names(neg.log.gene)[gene.order[1:num.ms.genes]]
+```
+
+The top genes are enriched for the following processes.
+
+```{r top_enrich}
+enrich <- gost(top.genes, sources = c("GO", "HP", "KEGG", "REACTOME", "CORUM"))
+plot.enrichment(enrich, order.by = "p_value")
+```
+
+After selecting training genes, we need to identify the mouse orthologs
+and their Entrez IDs. Not all genes will have mouse orthologs
+
+```{r convert}
+mus.hum <- read.delim(here("Data", "mouse", "human.mouse.orthologs.txt"))
+gene.idx <- match(top.genes, mus.hum[,"Human.Gene.Name"])
+mus.entrez <- mus.hum[gene.idx,"Mouse.Ortholog.Entrez"]
+mus.entrez <- mus.entrez[which(!is.na(mus.entrez))]
+
+input.table <- mus.hum[gene.idx,]
+```
+
+## FNTM
+
+```{r download_net, eval = TRUE, echo = FALSE}
+#Download the network if it hasn't been previously downloaded. 
+tissue.name = gsub(" ", "_", tissue.type)
+net.file <- here("Data", "FGN", paste0(tissue.name, "_top.RData"))
+if(!file.exists(net.file)){
+    download.tissue.net(tissue.name, organism = "mouse", top.edges.only = TRUE, 
+    project.dir = here("Data", "FGN"))
+    }
+```
+
+
+```{r read_net, echo = FALSE}
+#Read in the downloaded network.
+all.var <- ls()
+net.loaded <- as.logical(length(which(all.var == "tissue.net")))
+if(!net.loaded){
+    tissue.net <- readRDS(net.file)
+}
+```
+
+Get information for all genes listed.
+
+```{r gene_info}
+gene.info <- read.delim(here("Data", "mouse", "mouse_gene_info.txt"))
+```
+
+### Identify Candidate Genes
+
+
+First pull out genes from each candidate region 
+and remove any from the training set.
+
+```{r candidate_table_fun}
+
+#only load package and library if we need to
+#lib.loaded <- as.logical(length(which(all.var == "mus")))
+#if(!lib.loaded){
+#    library(biomaRt)
+#    mus <- useEnsembl(biomart="ensembl", dataset="mmusculus_gene_ensembl", 
+#    host = "www.ensembl.org")
+    #mus <- useMart("ENSEMBL_MART_ENSEMBL", dataset = "mmusculus_gene_ensembl", 
+    #host = "may2017.archive.ensembl.org")
+#}
+
+
+map <- readRDS(here("Data", "map.RDS"))
+
+genes_in_region <- function(chr, pos.min, pos.max){
+    chr.idx <- which(gene.info[,"chromosome_name"] == chr)
+    above.min <- which(gene.info[,"start_position"] >= pos.min)
+    below.max <- which(gene.info[,"start_position"] <= pos.max)
+    gene.idx <- Reduce("intersect", list(chr.idx, above.min, below.max))
+    region.table <- gene.info[gene.idx,]
+    return(region.table)
+}
+
+qtl_candidate_table <- function(scan1_results, chr, lodthresh, prob = 0.95, Mb.buffer = 0){
+
+    peak.table <- find_peaks(scan1_results, map = map, threshold = lodthresh, prob = prob)
+    chr.idx <- which(peak.table[,"chr"] == chr)
+    lod.int <- peak.table[chr.idx,c("ci_lo", "ci_hi")]
+    candidate.table <- genes_in_region(chr, (as.numeric(lod.int[1])-Mb.buffer)*1e6, (as.numeric(lod.int[2])+Mb.buffer)*1e6)
+
+    result <- list("candidate_table" = candidate.table, "interval" = lod.int)
+
+    return(result)
+}
+```
+
+```{r qtl_candidates}
+test.qtl <- read.delim(here("Data", "qtl_data.txt")) #made by hand for ease of editing the QTLs of interest
+
+qtl.results <- vector(mode = "list", length = nrow(test.qtl))
+names(qtl.results) <- test.qtl[,1]
+
+for(i in 1:nrow(test.qtl)){
+    scan1.result <- readRDS(here("Results", "Zeros_included_covar-batch_rank-norm", test.qtl[i,"results_file"]))
+    trait.idx <- which(names(scan1.result) == test.qtl[i,"qtl_name"])
+    qtl_table <- qtl_candidate_table(scan1.result[[trait.idx]], 
+        chr = test.qtl[i,"Chr"], lodthresh = test.qtl[i,"lodthresh"], prob = test.qtl[i,"prob"])
+    qtl.results[[i]] <- qtl_table
+}
+
+all_candidates <- Reduce("rbind", lapply(qtl.results, function(x) x$candidate_table))
+write.table(all_candidates, here("Results", "Prioritization", "qtl_candidates.csv"), 
+    sep = ",", quote = FALSE, row.names = FALSE)
+all_lod_int <- lapply(qtl.results, function(x) x$interval)
+names(all_lod_int) = c("14", "4")
+
+overlapping.genes <- intersect(all_candidates[,"entrezgene_id"], mus.entrez)
+```
+
+There is/are `r length(overlapping.genes)` positional candidates that
+are also in the GWAS training set. We removed these from the training
+set.
+
+```{r}
+overlap.idx <- match(overlapping.genes, all_candidates[,"entrezgene_id"])
+overlapping.names <- all_candidates[overlap.idx,"external_gene_name"]
+kable(all_candidates[overlap.idx,])
+
+to.remove <- which(mus.entrez %in% overlapping.genes)
+to.keep <- setdiff(1:length(mus.entrez), to.remove)
+training.set <- mus.entrez
+```
+``
+
+## Setup Positive-Labeled Gene Features
+
+Get the connection weights of the positive-labeled genes to each other
+in the tissue network. Not all of the genes in the list will have
+Entrez IDs, and not all of the genes will have connections to the 
+other genes in the tissue network. We trim off positive-labeled genes 
+that are not connected to any other positive-labeled genes.
+
+
+```{r pick_genes, echo = FALSE}
+tissue.adj <- tissue.adj.mat(tissue.net, training.set, inc.all.genes = FALSE)
+```
+
+After identifying all Entrezgene IDs and building the positive-labeled network,
+we have `r nrow(tissue.adj)` positive-labeled genes for training.
+
+## Train SVM
+We used this positive-labeled network as features to train 100 SVMs to classify
+MS- and not MS-related genes. In each of the 100 SVMs, we selected a balanced
+set of unlabeled genes for training. We write each of the trained models to a 
+file for further analysis.
+
+```{r train_models, message = FALSE, warning = FALSE, error = FALSE, eval = TRUE}
+generate.triage.models(path = results.dir, project.name = project.name, 
+trait.genes = training.set, fgn = tissue.net, n.trials = 100, cluster.modules = FALSE, 
+cluster.threshold = 700, max.cluster.size = 600, min.cluster.size = 10, 
+use.SVD = FALSE, verbose = TRUE, n.cores = n.cores)
+```
+
+## ROC Curves
+
+We calculated ROC curves for each SVM, as well as the overal AUC for
+the group. The plot below shows the ROC curves for all 100 models
+along with the average AUC.
+
+```{r roc, fig.height = 5, fig.width = 5}
+all.fptp <- svm.ROC(results.dir, n.cores = n.cores, plot.results = TRUE)
+all.auc <- sapply(all.fptp, function(x) smooth.auc(Reduce("rbind", x), plot = FALSE))
+saveRDS(all.auc, file.path(results.dir, "AUC.RDS"))
+```
+
+## Score QTL genes
+
+We then used the trained models to classify genes under the 
+previously identified QTL.
+
+Because of the way TRiAGE is set up, we will score all candidates
+in all QTLs and then separate the results for viewing.
+
+
+### Score genes
+
+We scored all genes in the genome, which helps us identify
+the functional clusters we are identifying that that are 
+related to the GWAS hits used in the training set.
+
+```{r score_genes}
+score.candidates(results.dir, candidate.genes = gene.info[,"entrezgene_id"],
+    verbose = TRUE, plot.results = FALSE)
+merge.svm.gene.info(results.dir, gene.info)
+```
+
+The following plot shows the distribution of functional
+scores (-log10(FPR)). The red line shows where the 99th
+percentile cutoff is.
+
+```{r score_dist}
+score.table <- read.csv(file.path(results.dir, "QTL_Prioritization", "Module1", "Candidate.Gene.Results.csv"))
+fun.score <- -log10(score.table[,"Mean.FP.Rate"])
+names(fun.score) <- score.table[,"entrezgene_id"]
+hist(fun.score, main = "Functional Score", xlab = "Functional Score", breaks = 100)
+
+top.perc = 99
+top.score <- get.percentile(fun.score, top.perc)
+abline(v = top.score, col = "red")
+n.top <- length(which(fun.score >= top.score))
+```
+
+We looked at the adjacency matrix of the top `r n.top` genes,
+which represents the top `r top.perc` percentile of functional
+scores. 
+
+The network of these top scoring genes doesn't have a huge 
+amount of structure. Any clusters in it are also highly related 
+to each other.
+
+```{r top_net}
+score.order <- order(fun.score, decreasing = TRUE)
+top.genes <- names(fun.score[score.order])[1:n.top]
+#plot(fun.score[score.order][1:n.top])
+
+#create a new network with the top genes from the scoring
+top.adj <- tissue.adj.mat(tissue.net, top.genes, inc.all.genes = FALSE)
+#pheatmap(top.adj, show_rownames = FALSE, show_colnames = FALSE)
+```
+
+```{r top_cl}
+#look for clusters
+#net.decomp <- plot.decomp(top.adj, pc = 4)
+test <- test.pam.k(top.adj, kseq = 2:10, diss = FALSE, metric = "euclidean", plot.results = FALSE)
+#boxplot(test$cl.width)
+num.cl <- names(which.max(sapply(test$cl.width, mean)))
+```
+
+We used a silhouette method to identify the best number
+of clusters in the matrix using k means clustering. This
+was `r num.cl` clusters, shown below.
+
+```{r cl_def, fig.width = 8, fig.height = 7}
+cl.mem <- test$mem[,num.cl]
+cl.df <- data.frame("cluster" = as.factor(cl.mem))
+cl.order <- order(cl.mem)
+#pheatmap(top.adj[cl.order,cl.order], show_rownames = FALSE, show_colnames = FALSE)
+
+#pheatmap(top.adj[cl.order,cl.order])
+#cl.tree <- hclust(dist(top.adj))
+#cl.mem <- cutree(cl.tree, k = 2)
+cl.df <- data.frame("cluster" = as.factor(cl.mem))
+cl.order <- order(cl.mem)
+pheatmap(top.adj[cl.order,cl.order], cluster_rows = FALSE, cluster_cols = FALSE,
+    show_rownames = FALSE, show_colnames = FALSE, annotation_row = cl.df)
+```
+
+The functional enrichments of these clusters are shown below.
+These are the functions that are most highly related to the 
+input training set of genes according to the `r tissue.type`
+network.
+
+```{r cl_enrich, fig.width = 7, fig.height = 7}
+
+u_cl <- unique(cl.mem)
+cl.id <- lapply(u_cl, function(x) names(cl.mem)[which(cl.mem == x)])
+cl.enrich <- lapply(cl.id, function(x) gost(x, organism = "mmusculus", 
+    sources = c("GO", "KEGG", "REACTOME"), numeric_ns = "ENTREZGENE_ACC"))
+names(cl.enrich) <- paste0("Cluster", 1:length(cl.enrich))
+plot.enrichment.group(cl.enrich, sort.by = "p_value", max.term.size = 3000, n.terms = 20)
+```
+
+### Rank Genes in Each QTL
+
+We then looked more specifically at the genes in the QTL
+identified in Mapping_EAE_traits.Rmd.
+
+```{r get_fp, error = FALSE, warning = FALSE, message = FALSE}
+fp.mat <- get.all.fp(results.dir)
+#replace zeros with a minimum score
+#so we don't end up with infinite scores
+min.non.zero <- min(fp.mat[which(fp.mat[,1] > 0),1])
+min.val <- min.non.zero/10
+zero.locale <- which(fp.mat == 0)
+fp.mat[zero.locale,1] <- min.val
+
+neg.log.fp <- -log10(fp.mat)
+
+common.genes <- intersect(rownames(neg.log.fp), all_candidates[,"external_gene_name"])
+result.table <- cbind(all_candidates[match(common.genes, all_candidates[,"external_gene_name"]),], neg.log.fp[common.genes,])
+colnames(result.table)[ncol(result.table)] <- "neg.log.fpr"
+```
+
+## Gene Scores by Position
+
+The following plots show the genes plotted in their genomic
+position on the x axis and their -log(FPR) on the y axis.
+The higher the gene on the y axis the more confident the 
+model is that it is related to the input genes. Vertical 
+gray dashed lines show the boundaries of the QTL. The
+horizontal lines correspond to an FPR of 0.05 and 0.1.
+
+
+```{r get_region}
+
+u_chr <- unique(result.table[,"chromosome_name"])
+
+for(ch in 1:length(u_chr)){
+    chr.idx <- which(result.table[,"chromosome_name"] == u_chr[ch])
+    gene.pos <- result.table[chr.idx,"start_position"]/1e6
+    pos.region <- max(gene.pos) - min(gene.pos)
+    xmin <- min(gene.pos)-(pos.region*0.05)
+    xmax <- max(gene.pos)+(pos.region*0.05)
+    yvals <- result.table[chr.idx,"neg.log.fpr"]
+    ymax <- max(yvals)*1.05
+
+    plot.col = rep("black", length(gene.pos))
+    has.gwas <- which(result.table[chr.idx,"external_gene_name"] %in% overlapping.names)
+    if(length(has.gwas) > 0){
+        plot.col[has.gwas] <- "red"
+    }
+
+    plot(gene.pos, yvals, ylim = c(0, ymax),
+        xlab = paste("Chr", u_chr[ch], "Position (Mb)"), ylab = "-log10(FPR)",
+        main = paste("Chr", u_chr[ch], "QTL"), pch = 16, xlim = c(xmin, xmax))
+    text(result.table[chr.idx,"start_position"]/1e6, result.table[chr.idx,"neg.log.fpr"],
+        labels = result.table[chr.idx, "external_gene_name"], pos = 3)
+    int.idx <- which(names(all_lod_int) == u_chr[ch])
+    abline(v = all_lod_int[[int.idx]], lty = 2, col = "gray")
+    abline(h = -log10(c(0.05, 0.1)), lty = c(1,2))
+
+    #plot unranked genes along the x axis. Mark any that 
+    #are GWAS hits.
+    ranked.genes <- result.table[chr.idx, "external_gene_name"]
+    all.region.genes <- genes_in_region(chr = u_chr[ch], 
+        min(result.table[chr.idx,"start_position"]), 
+        max(result.table[chr.idx,"start_position"]))
+    unranked.genes <- setdiff(all.region.genes[,"external_gene_name"], ranked.genes)
+    is.gwas <- match(unranked.genes)
+
+
+
+}
+```
+
+
+## Ranked Genes by QTL
+
+The following plots show only the scores of each gene
+independent of position. They are sorted from highest
+to lowest score. The black vertical lines correspond to
+FPR of 0.05 and 0.1.
+
+The histograms show the distribution of functional scores
+across the mouse genome and where the top-ranked gene in 
+the locus fell in that distribution.
+
+```{r, fig.width = 8, fig.height = 4}
+for(ch in 1:length(u_chr)){
+    par(mfrow = c(1,2))
+    chr.idx <- which(result.table[,"chromosome_name"] == u_chr[ch])
+    result.fpr <- result.table[chr.idx,"neg.log.fpr"]
+    result.order <- order(result.fpr, decreasing = FALSE)
+    par(mar = c(4,8,4,2))
+    barplot(result.fpr[result.order], las = 2, 
+        main = paste("Chr", u_chr[ch], "QTL"),
+        ylab = "", names = result.table[chr.idx[result.order],"external_gene_name"],
+        horiz = TRUE)
+    abline(v = -log10(c(0.05, 0.1)), lty = c(1,2))
+    mtext("-log10(FPR)", side = 2, line = 4.5)
+
+    par(mar = c(4,4,4,4))
+    hist(fun.score, xlab = "Functional Score", main = "All Functional Scores")
+    abline(v = max(result.table[chr.idx,"neg.log.fpr"]), col = "red")
+    legend("topright", lty = 1, col = "red",
+        legend = tail(result.table[chr.idx[result.order],"external_gene_name"], 1))
+}
+
+```
+
+```{r pubmed, results = "asis"}
+if(lookup.genes){
+    cat("## Literature associations\n")
+    all_genes <- result.table[,"external_gene_name"]
+    all.pubmed <- lapply(all_genes, function(x) get_pubmed_ids(paste("Multiple Sclerosis AND", x)))
+
+    num.papers <- unlist(lapply(all.pubmed, function(x) x$Count))
+    with.papers <- which(num.papers != 0)
+    paper.counts <- cbind(result.table[with.papers,"external_gene_name"], num.papers[with.papers])
+    number.order <- order(as.numeric(paper.counts[,2]))
+    barplot_with_num(as.numeric(paper.counts[number.order,2]), 
+        names = paper.counts[number.order,1], las = 2, ylab = "Number of Abstracts")
+
+
+    has.data <- all.pubmed[with.papers]
+    all.abstracts <- lapply(has.data, function(x) fetch_pubmed_data(x, format = "abstract"))
+    for(i in 1:length(all.abstracts)){
+        write.table(all.abstracts[[i]], here("Results", "Prioritization", tissue.name, 
+            paste0("PubMed_Query_", all_genes[with.papers[i]], ".txt")), 
+            sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
+    }
+
+}
+```

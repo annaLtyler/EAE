@@ -51,6 +51,7 @@ line without entries. The files are:
 * incidence_strain.txt - incidence calculations for each strain including both sexes
 
 ```{r get_arguments}
+rm(list = ls())
 args <- commandArgs(trailingOnly=T)
 
 b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
@@ -76,6 +77,8 @@ b6_correction = FALSE; batch_as_covar = FALSE; rank_norm = FALSE
 }
 
 if(b6_correction && batch_as_covar){stop("Set either b6_correction or batch_as_covar to TRUE, not both.")}
+
+alpha <- c(0.15, 0.2)
 ```
 
 ```{r load_code}
@@ -168,7 +171,8 @@ if(!file.exists(results.dir)){dir.create(results.dir)}
 ```
 
 ```{r load_libraries, warning = FALSE}
-all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr", "parallel")
+all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr", "parallel",
+    "stringr")
 load_libraries(all.packages)
 cores = detectCores()-1
 ```
@@ -1209,7 +1213,7 @@ plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
     for(ph in 1:length(scan.results)){
         cat(tab.level, names(scan.results)[ph], "\n")
         summary_thresholds = fdr_summarize(perm.results[[ph]], fdr_cl = 0.95, 
-            geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
+            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = TRUE, quartz = FALSE)
 
         finite.thresh <- which(is.finite(summary_thresholds))
@@ -1387,12 +1391,37 @@ if(run_permutations){
 
 ### CDS by individual allele effects {.tabset .tabset-fade .tabset-pills}
 
-```{r thresh}
-allele.thresh = c(5,7,5)
-```
+The following plot shows the allele effects for the Chr 14
+QTL for Global CDS. The full chromosome has a lot of allele 
+frequency weirdness on it. There are two plots below. One 
+of the full chromosome, and another that captures as much 
+of the QTL as possible without showing the weirdness.
 
-The following plots show the allele effects for the largest
-QTL for each trait.
+```{r global_detail, fig.height = 8, fig.width = 8}
+#round genotypes to squash out the wild associations we 
+#get with teeny tiny probabilities
+rounded.geno <- expanded.genoprobs
+for(i in 1:length(rounded.geno)){
+    rounded.geno[[i]] <- round(rounded.geno[[i]], 2)
+}
+
+chr = 14
+global.lod <- scan1(rounded.geno[,chr], mapping.pheno[,"Global"], exp.K[[chr]],
+    addcovar = covar)
+global.coef <- scan1coef(rounded.geno[,chr], mapping.pheno[,"Global"], exp.K[[chr]],
+    addcovar = covar)
+
+plot_coefCC(global.coef, map = map, scan1_output = global.lod,
+    ylim = c(-2, 2), col = strain.colors, main = "Global CDS full Chr 14",
+    top_panel_prop = 0.5)
+
+
+plot_coefCC(global.coef, map = map, scan1_output = global.lod,
+    ylim = c(-2, 2), col = strain.colors, xlim = c(103, 119),
+    main = "Global CDS Chr 14 QTL Window", top_panel_prop = 0.5)
+
+
+```
 
 ```{r scan_coef, fig.width = 7, fig.height = 7, results = "asis", eval = FALSE}
 cds.coef <- allele_coef(map.geno = expanded.genoprobs, 
@@ -1596,10 +1625,10 @@ for(i in 1:length(cds.avg.scans.sex.int)){
     cat("####", names(cds.avg.scans.sex.int)[i],  "\n")
     if(run_permutations){
         sig.levels.int <- fdr_summarize(cds.avg.perm.sex.int[[i]], fdr_cl = 0.95, 
-            geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
+            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
         sig.levels.add <- fdr_summarize(cds.avg.perm.sex.add[[i]], fdr_cl = 0.95, 
-            geno_sig = c(0.01, 0.05), fdr_thresh = c(0.1, 0.2, 0.4), 
+            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE)
         ymax <- max(c(cds.avg.scans.sex.int[[i]][,1], sig.levels.add[1], sig.levels.int[1]), na.rm = TRUE)*1.05
     }
@@ -1731,7 +1760,7 @@ rownames(incidence.covar) <- rownames(inc.by.sex)
 ```{r map_overall_inc, warning = FALSE}
 inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K, 
     exclude.zeros = FALSE, 
-    results.file = file.path(results.dir, "scan1_results_overall_incidence.RDS"))
+    results.file = file.path(results.dir, "scan1_results_overall_incidence_test.RDS"))
 
 if(run_permutations){    
     incidence.overall.perm <- perm_scans(strain.genoprobs, overall.inc, strain.K,
@@ -1789,14 +1818,14 @@ if(run_permutations){
 ```
 
 
-### LOD Traces: Incidence With Sex Covariate {.tabset .tabset-fade .tabset-pills}
+### LOD Traces: Incidence With Sex as Interactive Covariate {.tabset .tabset-fade .tabset-pills}
 
 
 ```{r plot_perm_inc, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
     fdr_summaries_incidence_sex_int <- plot_fdr_fun(inc.scan.sex.int, 
-    inc.scan.sex.int.perm, tab.level = "####")
+    incidence.sex.int.perm, tab.level = "####")
 }else{    
     ymax <- max(sapply(inc.scan.sex.int, function(x) max(x[,1])))*1.05
     for(i in 1:length(inc.scan.sex.int)){
@@ -1810,11 +1839,13 @@ if(run_permutations){
 #dev.off()
 ```
 
+## LOD Traces: Additive and Interactive Together {.tabset .tabset-fade .tabset-pills}
+
 ```{r plot_inc_perm_both, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 
 for(i in 1:length(inc.scan.sex.int)){
-    cat("####", names(inc.scan.sex.int)[i], "\n")
+    cat("###", names(inc.scan.sex.int)[i], "\n")
     if(run_permutations){
         ymax <- max(c(inc.scan.sex.int[[i]][,1]), fdr_summaries_incidence_sex_int[i,1:2])*1.05
     }else{
@@ -1827,7 +1858,7 @@ for(i in 1:length(inc.scan.sex.int)){
     }
     plot(inc.scan.sex.add[[i]], map = map, add = TRUE)
     if(run_permutations){
-        abline(h = fdr_summaries_incidence_sex_add[i,1:2], lty = 1:2, col = "darkblue")
+        abline(h = fdr_summaries_incidence_overall[i,1:2], lty = 1:2, col = "darkblue")
     }
 
     diff.scan <- inc.scan.sex.int[[i]] - inc.scan.sex.add[[i]]
@@ -1841,8 +1872,6 @@ for(i in 1:length(inc.scan.sex.int)){
 
     cat("\n\n")
 }
-
-
 #dev.off()
 ```
 
@@ -1985,7 +2014,7 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
         signif(marker.pos[,"pos"], 2), "Mb"))
 
 
-    boxplot(strain.effects[strain.order], col = CCcolors[strain.order],
+    boxplot(strain.effects[strain.order], col = strain.colors[strain.order],
         main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
         signif(marker.pos[,"pos"], 2), "Mb\nLOD =", signif(marker.lod, 2)),
         ylab = trait.name)
@@ -2024,4 +2053,241 @@ plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs,
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 #dev.off()
+
+```
+
+
+## EAE Chr 4
+
+The plot below shows the classic allele effect plot for
+chromosome 4 for EAE incidence. There are some allele
+frequency issues just above 60 Mb and again at about 
+125 Mb that I've cut out of the image.
+
+```{r inc_allele, fig.width = 8, fig.height = 8}
+#round genotypes to squash out the wild associations we 
+#get with teeny tiny probabilities
+rounded.geno <- strain.genoprobs
+for(i in 1:length(rounded.geno)){
+    rounded.geno[[i]] <- round(rounded.geno[[i]], 2)
+}
+
+eae4.lod <- scan1(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
+eae4.coef <- scan1coef(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
+
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,60),
+    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
+    main = "EAE Incidence Chr 4")
+
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,60),
+    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5,
+    main = "EAE Incidence Chr 4 window")
+
+
+```
+
+## SNPs
+
+For large QTL, that that on Chr 4 for EAE incidence, we 
+are interested in identifying individual SNPs that match 
+the allele effect patterns. 
+
+We want to see if there are any SNPs in this location 
+that match the allele effect pattern. I downloaded the
+CC SNPs from the [UNC website](https://csbio.unc.edu/CCstatus/CCGenomes/).
+I downloaded the file labeled "Sequenced samples (GigaMUGA 20.7Mb)"
+on August 16, 2023.
+
+```{r cc_snps}
+snps <- read.csv(here("Data", "SEQgenotypes.csv"))
+snp.info <- snps[,c(1:3)]
+cc.idx <- lapply(incidence.strains, function(x) grep(x, colnames(snps)))
+has.snp <- which(sapply(cc.idx, length) > 0)
+
+snp.table <- snps[,unlist(cc.idx[has.snp])]
+colnames(snp.table) <- incidence.strains[has.snp]
+```
+
+We isolated the region around the LOD peak, 4 Mb up
+and downstream of the peak marker.
+
+```{r subset_snps}
+
+eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 8)
+peak.chr <- eae.peak[1,"chr"]
+peak.pos <- eae.peak[1,"pos"]*1e6
+bp.buffer <- 21e6 #a buffer on either side of the peak
+
+chr.idx <- which(snp.info[,"chromosome"] == peak.chr)
+above.min <- which(snp.info[,"position.b38."] >= peak.pos-bp.buffer)
+below.max <- which(snp.info[,"position.b38."] <= peak.pos+bp.buffer)
+peak.idx <- Reduce("intersect", list(chr.idx, above.min, below.max))
+peak.info <- snp.info[peak.idx,]
+
+peak.snps <- as.matrix(snp.table[peak.idx,])
+#there are a bunch of SNPs that are labeled N or H
+#We will set these to NA
+peak.snps[which(peak.snps == "N")] <- NA
+peak.snps[which(peak.snps == "H")] <- NA
+```
+
+We converted the SNP matrix to a numeric matrix.
+
+```{r convert_num}
+#convert to numeric. Use the minor allele in this 
+#data set at the minor allele
+
+num.snps <- matrix(NA, nrow = nrow(peak.snps), ncol = ncol(peak.snps))
+dimnames(num.snps) <- dimnames(peak.snps)
+for(i in 1:nrow(peak.snps)){
+    snp.calls <- peak.snps[i,]
+    u_snps <- unique(snp.calls[which(!is.na(snp.calls))])
+    if(length(u_snps) == 0){next()}
+    snp_freq <- sapply(u_snps, function(x) length(which(snp.calls == x)))
+    min.allele <- which.min(snp_freq)
+    #assign minor allele
+    num.snps[i,which(snp.calls == names(min.allele))] <- 0
+    #if there is another allele, assign it 1
+    if(length(u_snps) > 1){
+        maj.allele <- setdiff(names(snp_freq), names(min.allele))
+        num.snps[i,which(snp.calls == maj.allele)] <- 1
+    }
+}
+```
+
+```{r ordered_snps, eval = FALSE}
+common.ind <- intersect(colnames(num.snps), rownames(overall.inc))
+eae_order <- order(overall.inc[common.ind,1])
+eae_df <- data.frame("EAE" = overall.inc[common.ind,1])
+pheatmap(t(num.snps[,common.ind[eae_order]]), cluster_rows = FALSE, cluster_cols = FALSE,
+    show_colnames = FALSE, annotation_row = eae_df)
+
+ind.cor <- cor(num.snps, use = "pairwise.complete.obs")
+pheatmap(ind.cor)
+marker.cor <- cor(t(num.snps), use = "pairwise.complete.obs")
+pheatmap(marker.cor, cluster_rows = FALSE, cluster_cols = FALSE, show_rownames = FALSE, show_colnames = FALSE)
+```
+
+And used qtl2 to scan the SNPs.
+
+```{r snp_to_genoprobs}
+snp.geno <- abind(num.snps, 1-num.snps, along = 3)
+snp.genoprobs <- list(aperm(snp.geno, c(2,3,1)))
+dimnames(snp.genoprobs[[1]])[[2]] <- c("A", "B")
+names(snp.genoprobs) <- peak.chr
+attr(snp.genoprobs, "crosstype") <- "risib"
+attr(snp.genoprobs, "is_x_chr") <- c("4" = FALSE)
+attr(snp.genoprobs, "alleles") <- c("A", "B")
+attr(snp.genoprobs, "alleleprobs") <- FALSE
+attr(snp.genoprobs, "class") <- c("calc_genoprob", "list")
+
+rownames(overall.inc) <- str_squish(rownames(overall.inc))
+```
+
+There are no individual SNPs that explain the haplotype
+effects in the QTL. The peak of the Chr 4 QTL is marked
+by the red line. The horizontal black line shows p = 0.01.
+Multiple SNPs in the region pass this threshold, but none
+stand out as particularly interesting.
+
+```{r scan_snps, fig.width = 7, fig.height = 4}
+snp.scan <- scan1(snp.genoprobs, overall.inc[,1,drop=FALSE])
+snp.scan.perm <- scan1perm(snp.genoprobs, overall.inc[,1,drop=FALSE], n_perm = 100)
+plot(as.numeric(peak.info[,3])/1e6, snp.scan[,1], type = "l",
+    xlab = "Chromosome 4 Position (Mb)", ylab = "SNP LOD", ylim = c(0,3))
+abline(v = peak.pos/1e6, col = "red")
+abline(h = summary(snp.scan.perm, alpha = alpha), lty = c(1,2))
+```
+
+### All SNPs
+
+We are also interested in a full scan of the SNPs to see if there
+is anything interesting in the genome that we did not see in the
+original scan.
+
+```{r all_snps}
+u_chr <- c(1:19, "X")
+
+peak.info <- snp.info
+peak.snps <- as.matrix(snp.table)
+#there are a bunch of SNPs that are labeled N or H
+#We will set these to NA
+peak.snps[which(peak.snps == "N")] <- NA
+peak.snps[which(peak.snps == "H")] <- NA
+
+
+num.snps <- matrix(NA, nrow = nrow(peak.snps), ncol = ncol(peak.snps))
+dimnames(num.snps) <- dimnames(peak.snps)
+for(i in 1:nrow(peak.snps)){
+    snp.calls <- peak.snps[i,]
+    u_snps <- unique(snp.calls[which(!is.na(snp.calls))])
+    if(length(u_snps) == 0){next()}
+    snp_freq <- sapply(u_snps, function(x) length(which(snp.calls == x)))
+    min.allele <- which.min(snp_freq)
+    #assign minor allele
+    num.snps[i,which(snp.calls == names(min.allele))] <- 0
+    #if there is another allele, assign it 1
+    if(length(u_snps) > 1){
+        maj.allele <- setdiff(names(snp_freq), names(min.allele))
+        num.snps[i,which(snp.calls == maj.allele)] <- 1
+    }
+}
+
+chr_idx <- lapply(u_chr, function(x) which(snp.info[,"chromosome"] == x))
+snp.geno <- lapply(chr_idx, function(x) abind(num.snps[x,], 1-num.snps[x,], along = 3))
+for(ch in 1:length(u_chr)){
+    snp.geno[[ch]] <- aperm(snp.geno[[ch]], c(2,3,1))
+    dimnames(snp.geno[[1]])[[2]] <- c("A", "B")
+}
+names(snp.geno) <- u_chr
+attr(snp.geno, "crosstype") <- "risib"
+is_x <- c(rep(FALSE, 19), TRUE)
+names(is_x) <- u_chr
+attr(snp.geno, "is_x_chr") <- is_x
+attr(snp.geno, "alleles") <- c("A", "B")
+attr(snp.geno, "alleleprobs") <- FALSE
+attr(snp.geno, "class") <- c("calc_genoprob", "list")
+
+rownames(overall.inc) <- str_squish(rownames(overall.inc))
+
+snp.scan <- scan1(snp.geno, overall.inc[,1,drop=FALSE])
+snp.scan.perm <- scan1perm(snp.geno, overall.inc[,1,drop=FALSE], n_perm = 100)
+
+sig.lines <- summary(snp.scan.perm, alpha = alpha)
+
+pdf(here("Results", "SNP_Scan.pdf"), width = 30, height = 5)
+layout(matrix(c(1:20), nrow = 1))
+ymax <- max(c(snp.scan[,1], sig.lines[,1]), na.rm = TRUE)*1.2
+for(ch in 1:length(u_chr)){
+    chr.table <- snp.info[chr_idx[[ch]],]
+
+    if(ch == 1){
+    par(mar = c(4,4,4,0))
+    }else{
+        par(mar = c(4,0,4,0))
+    }
+    
+    chr.min <- min(as.numeric(chr.table[,3])/1e6)
+    chr.max <- max(as.numeric(chr.table[,3])/1e6)
+
+    plot.new()
+    plot.window(xlim = c(chr.min, chr.max), ylim = c(0, ymax))
+    if(ch %% 2 == 0){
+        draw.rectangle(chr.min, chr.max, 0, ymax, fill = "lightgray", border.col = NA)
+    }
+
+    points(as.numeric(chr.table[,3])/1e6, snp.scan[chr_idx[[ch]],1], type = "h")
+    axis(1)
+    mtext(u_chr[ch], side = 1, line = 2.5)
+
+    if(ch == 1){
+        axis(2)
+    }
+
+
+    abline(h = sig.lines[,1], lty = c(1,2))
+}
+
+mtext("EAE", side = 3, outer = TRUE, line = -2.5)
+dev.off()
 ```
