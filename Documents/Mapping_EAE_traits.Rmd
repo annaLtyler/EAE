@@ -92,7 +92,7 @@ add_founder_genotypes <- FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
-run_permutations <- TRUE
+run_permutations <- FALSE
 
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
@@ -101,7 +101,7 @@ exclude.zeros = FALSE #if true, we exclude animals with a CDS of 0
 disease.thresh = 0 #maximum disease score considered disease-free
 
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
-inc.file.date = "April_2023" #date for incidence csv files to use in format month_year
+inc.file.date = "October_2023" #date for incidence csv files to use in format month_year
 
 nperm = 1000
 ```
@@ -189,8 +189,9 @@ if(cc.color.scheme == "original"){
 cds <- read.csv(here("Data", paste0("CDS_", cds.file.date, ".csv")), strip.white = TRUE)
 incidence.files <- get.files(path = here("Data"), want = c(inc.file.date, "incidence"), 
     full.names = TRUE)
-incidence <- lapply(incidence.files, function(x) as.matrix(read.delim(x, row.names = 1)))
+incidence <- lapply(incidence.files, function(x) as.matrix(read.delim(x, row.names = 1, strip.white = TRUE)))
 names(incidence) <- gsub(".txt", "", basename(incidence.files))
+
 ```
 
 This run uses the CDS file from `r gsub("_", " ", cds.file.date)`.
@@ -609,6 +610,8 @@ if(!file.exists(map.file)){
     cc.genoprobs <- readRDS(new.geno.file)
     K <- readRDS(k.file)
 }
+
+hets <- lapply(cc.genoprobs, function(x) sapply(apply(x, 3, function(y) which(round(y, 2) == 0.5)), length))
 ```
 
 If specified, add genoptypes for 129, NOD, and B6, so we 
@@ -1967,6 +1970,7 @@ at some of the allele effects to get an idea of how robust these
 QTL are.
 
 ```{r large_qtl_allele_effects}
+
 #plot.with.model(inc.scan.overall$"Classical.only"[,1], inc.scan.overall$"AR.only"[,1],
 #    xlab = "Classical Only LOD", ylab = "AR Only LOD")
 
@@ -1988,7 +1992,6 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
 
     #test a random marker
     #max.marker <- sample(rownames(inc.scan.overall[[trait.idx]]), 1)
-
     marker.pos <- find_markerpos(map, max.marker)
     marker.geno <- round(pull_genoprobpos(mapping.geno, marker = max.marker), 
         round.digs)
@@ -2019,6 +2022,10 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
         signif(marker.pos[,"pos"], 2), "Mb\nLOD =", signif(marker.lod, 2)),
         ylab = trait.name)
     abline(h = 0)
+
+    result <- list("marker.geno" = marker.geno, "trait.vals" = annot.df,
+        "strain.effects" = strain.effects[strain.order])
+    invisible(result)
 }
 ```
 
@@ -2027,10 +2034,11 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
 ```{r eae_allele_effects}
 trait.name = "EAE"
 #pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
-plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
+test <- plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 #dev.off()
+
 ```
 
 ### Combined Type
@@ -2113,7 +2121,7 @@ and downstream of the peak marker.
 
 ```{r subset_snps}
 
-eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 8)
+eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 7)
 peak.chr <- eae.peak[1,"chr"]
 peak.pos <- eae.peak[1,"pos"]*1e6
 bp.buffer <- 21e6 #a buffer on either side of the peak
