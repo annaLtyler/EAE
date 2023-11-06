@@ -92,7 +92,7 @@ add_founder_genotypes <- FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
-run_permutations <- TRUE
+run_permutations <- FALSE
 
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
@@ -103,7 +103,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "October_2023" #date for incidence csv files to use in format month_year
 
-nperm = 1000
+nperm = 500
 ```
 
 ## Parameters
@@ -611,7 +611,6 @@ if(!file.exists(map.file)){
     K <- readRDS(k.file)
 }
 
-hets <- lapply(cc.genoprobs, function(x) sapply(apply(x, 3, function(y) which(round(y, 2) == 0.5)), length))
 ```
 
 If specified, add genoptypes for 129, NOD, and B6, so we 
@@ -654,7 +653,82 @@ if(add_founder_genotypes){
 
 ```
 
-## Allele Frequencies  {.tabset .tabset-fade .tabset-pills}
+```{r geno_query, eval = FALSE}
+
+chr_col <- function(pos.col, max.alleles){
+    full.col <- rep(NA, max.alleles)
+    if(length(pos.col) == 1){     
+        buffer <- max.alleles - 2
+        full.col <- c(rep(pos.col, 2), rep("white", buffer))
+    }else{
+        buffer <- max.alleles - length(pos.col)
+        full.col <- c(pos.col, rep("white", buffer))
+    }
+    return(full.col)
+}
+
+hets <- lapply(cc.genoprobs, function(x) sapply(apply(x, 3, function(y) which(round(y, 2) == 0.5)), length))
+other.prob <- lapply(cc.genoprobs, function(x) sort(unique(unlist(apply(x, 3, function(y) unique(as.vector(round(y, 2))))))))
+boxplot(other.prob)
+
+h2.chr <- 4
+#cc.chr <- cc.genoprobs[[h2.chr]]
+strain.idx <- sapply(mapping.strains, function(x) grep(x, rownames(mapping.genoprobs[[1]])))
+cc.chr <- mapping.genoprobs[[h2.chr]][strain.idx,,]
+marker.pos <- map[[h2.chr]][match(dimnames(cc.chr)[[3]], names(map[[h2.chr]]))]
+marker.bounds <- get_plot_bounds(1, max(marker.pos), scale.factor = 0.1)
+#pdf("~/Desktop/CC_geno.pdf", width = 3, height = 8)
+all.col <- vector(mode = "list", length = nrow(cc.chr)*2)
+idx <- 1
+for(i in 1:nrow(cc.chr)){
+    png(file.path("~/Desktop/CC_geno", paste0(gsub("/", "-", rownames(cc.chr)[i], fixed = TRUE), "_Chr", h2.chr, "_geno.png")), width = 3, height = 8,  units = "in", res = 300)
+    ind.geno <- round(cc.chr[i,,], 2) #one mouse's genotype for the chromosome
+    ind.col <- apply(ind.geno, 2, function(x) strain.colors[which(x > 0)])    
+    num.each <- sapply(ind.col, length)
+    num.chr <- max(num.each)
+    max.alleles <- max(2, num.chr)
+    mat <- t(sapply(ind.col, function(x) chr_col(x, max.alleles)))
+    layout(matrix(c(1,2), ncol = 2), widths = c(0.7, 1))
+    par(mar = c(4,4,4,0))
+    plot(c(1,dim(mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
+    axis(2, line = -2)
+    mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
+    par(mar = c(4,0,4,4))
+    plot(c(1, dim(mat)[2]), c(1, dim(mat)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(mat)[2]+0.2), ylim = c(0.7, dim(mat)[1]+0.2), bg = "transparent")
+    rasterImage(mat, xleft = 0.5, ybottom = 0.5, xright = dim(mat)[2]+0.5, ytop = dim(mat)[1]+0.5, interpolate = FALSE, bg = "transparent")
+    mtext(rownames(cc.chr)[i], side = 3)
+    dev.off()
+
+    all.col[[idx]] <- mat
+    idx = idx + 1
+    spacer.mat  <- matrix("white", nrow = dim(mat)[1], ncol = 4)
+    all.col[[idx]] <- spacer.mat
+    idx = idx + 1
+}
+
+contact.sheet <- Reduce("cbind", all.col)
+png(file.path("~/Desktop", paste0("CC_Chr", h2.chr, "_geno.png")), width = ncol(contact.sheet)/4, height = 8, units = "in", res = 300)
+layout(matrix(c(1,2), ncol = 2), widths = c(0.03, 1))
+par(mar = c(4,4,4,0))
+plot(c(1,dim(mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
+axis(2, line = -4)
+mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
+par(mar = c(4,0,4,4))
+plot(c(1, dim(contact.sheet)[2]), c(1, dim(contact.sheet)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(contact.sheet)[2]+0.2), ylim = c(0.7, dim(contact.sheet)[1]+0.2), bg = "transparent")
+rasterImage(contact.sheet, xleft = 0.5, ybottom = 0.5, xright = dim(contact.sheet)[2]+0.5, ytop = dim(contact.sheet)[1]+0.5, interpolate = FALSE, bg = "transparent")
+plot.dim <- par("usr")
+chr.coord <- which(contact.sheet[1,] != "white")
+consec.coord <- consec.pairs(chr.coord)
+consec.dist <- consec.coord[,2] - consec.coord[,1]
+label.coord <- chr.coord[which(consec.dist == 1)]
+#label.coord <- segment.region(plot.dim[1], plot.dim[2], nrow(cc.chr))
+text(x = label.coord+0.5, y = rep(nrow(contact.sheet)*1.02, nrow(cc.chr)), labels = sapply(strsplit(rownames(cc.chr), "/", fixed = TRUE), function(x) x[1]))
+dev.off()
+
+#dev.off()
+```
+
+## Allele Frequencies {.tabset .tabset-fade .tabset-pills}
 
 The following plots show the frequencies of each founder 
 allele across each chromosome. Regions in which the allele
@@ -1761,6 +1835,7 @@ rownames(incidence.covar) <- rownames(inc.by.sex)
 ```
 
 ```{r map_overall_inc, warning = FALSE}
+
 inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K, 
     exclude.zeros = FALSE, 
     results.file = file.path(results.dir, "scan1_results_overall_incidence_test.RDS"))
