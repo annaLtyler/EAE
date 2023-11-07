@@ -92,7 +92,6 @@ add_founder_genotypes <- FALSE
 remove_strains <- NULL
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
-run_permutations <- TRUE
 
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
@@ -103,7 +102,13 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "October_2023" #date for incidence csv files to use in format month_year
 
-nperm = 500
+nperm = 10
+
+if(nperm > 0){
+    run_permutations <- TRUE
+}else{
+    run_permutations <- FALSE
+}
 ```
 
 ## Parameters
@@ -650,7 +655,6 @@ if(add_founder_genotypes){
     mapping.K <- K
     mapping.strains <- eae.strains[grep("CC", eae.strains)]
 }
-
 ```
 
 ```{r geno_query, eval = FALSE}
