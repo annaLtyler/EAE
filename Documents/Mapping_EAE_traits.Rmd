@@ -568,11 +568,33 @@ for(cd in 1:ncol(norm.cds)){
 
 ## CC genotypes
 
-Get the CC genotypes from the qtl2 github website, convert
-to genoprobs, and calculate kinship matrices.
+I downloaded the CC genotypes from the UNC website:
+http://csbio.unc.edu/CCstatus/CCGenomes/#genotypes
+
+I downloaded the Most Recent Common Ancestor file. 
+This has marker names from the mega muga. I downloaded the
+mega muga marker map from the Jackson Laboratory 
+[resource for CC/DO mice](https://www.jax.org/research-and-faculty/genetic-diversity-initiative/tools-data/diversity-outbred-reference-data)
 
 ```{r get_CC_genotypes, warning = FALSE}
+
 cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
+marker.info.file <- here("Data", "mouse", "mm_uwisc_v1.csv")
+marker.info <- read.csv(marker.info.file)
+
+#convert the map and the genoprobs into a qtl2 object
+cross_obj <- array2qtl2(cc.geno, marker.info, chr = c(1:19, "X"), chr.col = "chr", 
+    pos.col = "bp_mm10", crosstype = "risib8")
+
+cc.genoprobs <- cross_obj$genoprobs
+map <- cross_obj$map
+
+K <- calc_kinship(cc.genoprobs, "loco")
+
+```
+
+
+```{r old, eval = FALSE}
 
 map.file <- here("Data", "map.RDS")
 new.geno.file <- here("Data", "genoprobs.RDS")
@@ -675,7 +697,7 @@ hets <- lapply(cc.genoprobs, function(x) sapply(apply(x, 3, function(y) which(ro
 other.prob <- lapply(cc.genoprobs, function(x) sort(unique(unlist(apply(x, 3, function(y) unique(as.vector(round(y, 2))))))))
 boxplot(other.prob)
 
-h2.chr <- 4
+h2.chr <- 17
 #cc.chr <- cc.genoprobs[[h2.chr]]
 strain.idx <- sapply(mapping.strains, function(x) grep(x, rownames(mapping.genoprobs[[1]])))
 cc.chr <- mapping.genoprobs[[h2.chr]][strain.idx,,]
@@ -685,27 +707,29 @@ marker.bounds <- get_plot_bounds(1, max(marker.pos), scale.factor = 0.1)
 all.col <- vector(mode = "list", length = nrow(cc.chr)*2)
 idx <- 1
 for(i in 1:nrow(cc.chr)){
-    png(file.path("~/Desktop/CC_geno", paste0(gsub("/", "-", rownames(cc.chr)[i], fixed = TRUE), "_Chr", h2.chr, "_geno.png")), width = 3, height = 8,  units = "in", res = 300)
+    
     ind.geno <- round(cc.chr[i,,], 2) #one mouse's genotype for the chromosome
     ind.col <- apply(ind.geno, 2, function(x) strain.colors[which(x > 0)])    
     num.each <- sapply(ind.col, length)
     num.chr <- max(num.each)
     max.alleles <- max(2, num.chr)
     mat <- t(sapply(ind.col, function(x) chr_col(x, max.alleles)))
-    layout(matrix(c(1,2), ncol = 2), widths = c(0.7, 1))
-    par(mar = c(4,4,4,0))
-    plot(c(1,dim(mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
-    axis(2, line = -2)
-    mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
-    par(mar = c(4,0,4,4))
-    plot(c(1, dim(mat)[2]), c(1, dim(mat)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(mat)[2]+0.2), ylim = c(0.7, dim(mat)[1]+0.2), bg = "transparent")
-    rasterImage(mat, xleft = 0.5, ybottom = 0.5, xright = dim(mat)[2]+0.5, ytop = dim(mat)[1]+0.5, interpolate = FALSE, bg = "transparent")
-    mtext(rownames(cc.chr)[i], side = 3)
-    dev.off()
-
-    all.col[[idx]] <- mat
+    rot.mat <- rotate.mat(rotate.mat(mat))
+    #rot.mat <- mat
+    
+    #layout(matrix(c(1,2), ncol = 2), widths = c(0.7, 1))
+    #par(mar = c(4,4,4,0))
+    #plot(c(1,dim(rot.mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
+    #axis(2, line = -2)
+    #mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
+    #par(mar = c(4,0,4,4))
+    #plot(c(1, dim(rot.mat)[2]), c(1, dim(rot.mat)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(mat)[2]+0.2), ylim = c(0.7, dim(mat)[1]+0.2), bg = "transparent")
+    #rasterImage(rot.mat, xleft = 0.5, ybottom = 0.5, xright = dim(mat)[2]+0.5, ytop = dim(mat)[1]+0.5, interpolate = FALSE, bg = "transparent")
+    #mtext(rownames(cc.chr)[i], side = 3)
+    
+    all.col[[idx]] <- rot.mat
     idx = idx + 1
-    spacer.mat  <- matrix("white", nrow = dim(mat)[1], ncol = 4)
+    spacer.mat  <- matrix("white", nrow = dim(rot.mat)[1], ncol = 4)
     all.col[[idx]] <- spacer.mat
     idx = idx + 1
 }
@@ -2162,11 +2186,11 @@ for(i in 1:length(rounded.geno)){
 eae4.lod <- scan1(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
 eae4.coef <- scan1coef(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
 
-plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,60),
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,100e6),
     ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
     main = "EAE Incidence Chr 4")
 
-plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,60),
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,100e6),
     ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5,
     main = "EAE Incidence Chr 4 window")
 
@@ -2202,7 +2226,7 @@ and downstream of the peak marker.
 
 eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 7)
 peak.chr <- eae.peak[1,"chr"]
-peak.pos <- eae.peak[1,"pos"]*1e6
+peak.pos <- eae.peak[1,"pos"]
 bp.buffer <- 21e6 #a buffer on either side of the peak
 
 chr.idx <- which(snp.info[,"chromosome"] == peak.chr)
