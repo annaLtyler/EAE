@@ -102,7 +102,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "October_2023" #date for incidence csv files to use in format month_year
 
-nperm = 500
+nperm = 100
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -1522,7 +1522,7 @@ plot_coefCC(global.coef, map = map, scan1_output = global.lod,
 
 
 plot_coefCC(global.coef, map = map, scan1_output = global.lod,
-    ylim = c(-2, 2), col = strain.colors, xlim = c(103, 119),
+    ylim = c(-2, 2), col = strain.colors, xlim = c(103e6, 119e6),
     main = "Global CDS Chr 14 QTL Window", top_panel_prop = 0.5)
 
 
