@@ -99,10 +99,10 @@ cc.color.scheme = "original"
 exclude.zeros = FALSE #if true, we exclude animals with a CDS of 0
 disease.thresh = 0 #maximum disease score considered disease-free
 
-cds.file.date = "April_2023" #date for CDS csv file to use in format month_year
-inc.file.date = "October_2023" #date for incidence csv files to use in format month_year
+cds.file.date = "November_2023" #date for CDS csv file to use in format month_year
+inc.file.date = "November_2023" #date for incidence csv files to use in format month_year
 
-nperm = 100
+nperm = 10
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -364,7 +364,7 @@ The following boxplots show the batch values for the B6
 animals. These show that the batches had an increase in 
 CDS across the batches.
 
-```{r b6_batch, fig.width = 8, fig.height = 8}
+```{r b6_batch, fig.width = 8, fig.height = 8, eval = FALSE}
 b6.idx <- which(factor.cds[,1] == "C57BL6")
 if(exclude.zeros){
     nonzero.idx <- lapply(1:ncol(num.cds), function(x) which(num.cds[,x] != 0))
