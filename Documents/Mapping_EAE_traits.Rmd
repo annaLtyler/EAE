@@ -2147,7 +2147,7 @@ test <- plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs,
 ### Combined Type
 
 ```{r combined_allele_effects}
-trait.name = "Combined.Type"
+trait.name = "Subtype..Combined.Type"
 #pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
 plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
@@ -2158,7 +2158,7 @@ plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs,
 ### Classical Only
 
 ```{r classical_allele_effects}
-trait.name = "Classical.only"
+trait.name = "Subtype..Classical.only"
 #pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
 plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
