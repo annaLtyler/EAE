@@ -96,7 +96,7 @@ remove_strains <- NULL
 cc.color.scheme = "original"
 #cc.color.scheme = "new"
 
-exclude.zeros = FALSE #if true, we exclude animals with a CDS of 0
+exclude.zeros = TRUE #if true, we exclude animals with a CDS of 0
 disease.thresh = 0 #maximum disease score considered disease-free
 
 cds.file.date = "November_2023" #date for CDS csv file to use in format month_year
