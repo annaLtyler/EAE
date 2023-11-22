@@ -71,6 +71,8 @@ if(final_param){
 }
 #===============================================================
 
+genotypes <- c("MRCA", "sequenced")
+genotypes <- genotypes[2]
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
 b6_correction = FALSE; batch_as_covar = FALSE; rank_norm = FALSE
@@ -155,10 +157,12 @@ if(rank_norm){
     norm.label <- "no-norm"
 }
 
-file.label <- paste(correction.label, norm.label, sep = "_")
+file.label <- paste(correction.label, norm.label, genotypes, sep = "_")
 ```
 
 The parameters for this run are as follows:
+
+* Genotypes used: `r genotypes`
 
 * Founders included: `r founders.included`
 
@@ -576,66 +580,69 @@ This has marker names from the mega muga. I downloaded the
 mega muga marker map from the Jackson Laboratory 
 [resource for CC/DO mice](https://www.jax.org/research-and-faculty/genetic-diversity-initiative/tools-data/diversity-outbred-reference-data)
 
-```{r get_CC_genotypes, warning = FALSE}
+```{r MRCA_genotypes, warning = FALSE}
 
-cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
-marker.info.file <- here("Data", "mouse", "mm_uwisc_v1.csv")
-marker.info <- read.csv(marker.info.file)
+if(genotypes == "MRCA"){
+    cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
+    marker.info.file <- here("Data", "mouse", "mm_uwisc_v1.csv")
+    marker.info <- read.csv(marker.info.file)
 
-#convert the map and the genoprobs into a qtl2 object
-cross_obj <- array2qtl2(cc.geno, marker.info, chr = c(1:19, "X"), chr.col = "chr", 
-    pos.col = "bp_mm10", crosstype = "risib8")
+    #convert the map and the genoprobs into a qtl2 object
+    cross_obj <- array2qtl2(cc.geno, marker.info, chr = c(1:19, "X"), chr.col = "chr", 
+        pos.col = "bp_mm10", crosstype = "risib8")
 
-cc.genoprobs <- cross_obj$genoprobs
-map <- cross_obj$map
+    cc.genoprobs <- cross_obj$genoprobs
+    map <- cross_obj$map
 
-K <- calc_kinship(cc.genoprobs, "loco")
-
+    K <- calc_kinship(cc.genoprobs, "loco")
+}
 ```
 
 
-```{r old, eval = FALSE}
+```{r sequenced_genotypes}
 
-map.file <- here("Data", "map.RDS")
-new.geno.file <- here("Data", "genoprobs.RDS")
-k.file <- here("Data", "kinship_loco.RDS")
+if(genotypes == "sequenced"){
+    map.file <- here("Data", "map.RDS")
+    new.geno.file <- here("Data", "genoprobs.RDS")
+    k.file <- here("Data", "kinship_loco.RDS")
 
-if(!file.exists(map.file)){
-    file <- paste0("https://raw.githubusercontent.com/rqtl/", "qtl2data/master/CC/cc.zip")
-    cc <- read_cross2(file)
-    map <- map
-    saveRDS(map, map.file)
-    
-    cc.official <- rownames(cc$geno[[1]])
-    cc.alias <- sapply(strsplit(cc.official, "/"), function(x) x[1])
-    write.table(cbind(cc.official, cc.alias), here("Data", "CC_names.txt"), sep = "\t", 
-        quote = FALSE, row.names = FALSE, col.names = FALSE)
-    
-    cc.genoprobs <- calc_genoprob(cc, cores = cores)    
-    new.genoprobs <- cc.genoprobs
+    if(!file.exists(map.file)){
+        file <- paste0("https://raw.githubusercontent.com/rqtl/", "qtl2data/master/CC/cc.zip")
+        cc <- read_cross2(file)
+        map <- map
+        saveRDS(map, map.file)
+        
+        cc.official <- rownames(cc$geno[[1]])
+        cc.alias <- sapply(strsplit(cc.official, "/"), function(x) x[1])
+        write.table(cbind(cc.official, cc.alias), here("Data", "CC_names.txt"), sep = "\t", 
+            quote = FALSE, row.names = FALSE, col.names = FALSE)
+        
+        cc.genoprobs <- calc_genoprob(cc, cores = cores)    
+        new.genoprobs <- cc.genoprobs
 
-    #add strains 83 and 84 to the genoprobs 
-    new.strains <- c("CC083", "CC084")
-    new.strain.idx <- match(new.strains, rownames(cc.geno))
-    for(i in 1:length(cc.genoprobs)){
-        chr.markers <- dimnames(cc.genoprobs[[i]])[[3]]
-        common.markers <- intersect(chr.markers, dimnames(cc.geno)[[3]])
-        orig.idx <- match(common.markers, dimnames(cc.genoprobs[[i]])[[3]])
-        new.idx <- match(common.markers, dimnames(cc.geno)[[3]])
-        new.chr <- abind(cc.genoprobs[[i]][,,orig.idx], cc.geno[new.strain.idx,,new.idx], along = 1)
-        new.genoprobs[[i]] <- new.chr
+        #add strains 83 and 84 to the genoprobs 
+        new.strains <- c("CC083", "CC084")
+        new.strain.idx <- match(new.strains, rownames(cc.geno))
+        for(i in 1:length(cc.genoprobs)){
+            chr.markers <- dimnames(cc.genoprobs[[i]])[[3]]
+            common.markers <- intersect(chr.markers, dimnames(cc.geno)[[3]])
+            orig.idx <- match(common.markers, dimnames(cc.genoprobs[[i]])[[3]])
+            new.idx <- match(common.markers, dimnames(cc.geno)[[3]])
+            new.chr <- abind(cc.genoprobs[[i]][,,orig.idx], cc.geno[new.strain.idx,,new.idx], along = 1)
+            new.genoprobs[[i]] <- new.chr
+        }
+        saveRDS(new.genoprobs, new.geno.file)
+
+        #overwrite the original objecct
+        cc.genoprobs <- new.genoprobs
+
+        K <- calc_kinship(new.genoprobs, "loco")
+        saveRDS(K, k.file)
+    }else{
+        map <- readRDS(map.file)
+        cc.genoprobs <- readRDS(new.geno.file)
+        K <- readRDS(k.file)
     }
-    saveRDS(new.genoprobs, new.geno.file)
-
-    #overwrite the original objecct
-    cc.genoprobs <- new.genoprobs
-
-    K <- calc_kinship(new.genoprobs, "loco")
-    saveRDS(K, k.file)
-}else{
-    map <- readRDS(map.file)
-    cc.genoprobs <- readRDS(new.geno.file)
-    K <- readRDS(k.file)
 }
 
 ```
@@ -1503,6 +1510,7 @@ of the full chromosome, and another that captures as much
 of the QTL as possible without showing the weirdness.
 
 ```{r global_detail, fig.height = 8, fig.width = 8}
+
 #round genotypes to squash out the wild associations we 
 #get with teeny tiny probabilities
 rounded.geno <- expanded.genoprobs
