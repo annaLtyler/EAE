@@ -52,11 +52,17 @@ line without entries. The files are:
 
 ```{r get_arguments}
 rm(list = ls())
-args <- commandArgs(trailingOnly=T)
 
-b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
-batch_as_covar <- as.logical(args[2]) #use batch as a covariate
-rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
+#===============================================================
+#I'm hard-coding final parameters for now
+#===============================================================
+#args <- commandArgs(trailingOnly=T)
+#b6_correction <- as.logical(args[1]) #Use B6 score to do batch correction
+#batch_as_covar <- as.logical(args[2]) #use batch as a covariate
+#rank_norm <- as.logical(args[3]) #whether to rank Z normalize adjusted scores.
+#===============================================================
+
+
 
 #===============================================================
 #hard code the final decisions on corrections and normalizations

@@ -9,10 +9,10 @@
 #SBATCH --mail-user=anna.tyler@jax.org
 #SBATCH --mail-type=END
 #for now set arguments in Rmd file
-# example use: sbatch EAE_mapping
+# example use: sbatch --export=b6_correction="FALSE",batch_as_covar="TRUE",rank_norm="TRUE" EAE_mapping
 
 cd $SLURM_SUBMIT_DIR
 
 module load singularity
 
-singularity exec ../../Containers/R.sif R -e 'rmarkdown::render(here::here("Documents", "Mapping_EAE_traits.Rmd"))'
+singularity exec ../../Containers/R.sif R -e 'rmarkdown::render(here::here("Documents", "Mapping_EAE_traits.Rmd"))'  --args "$b6_correction" "$batch_as_covar" "$rank_norm"
