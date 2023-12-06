@@ -78,7 +78,7 @@ if(final_param){
 #===============================================================
 
 genotypes <- c("MRCA", "sequenced")
-genotypes <- genotypes[2]
+genotypes <- genotypes[1]
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
 b6_correction = FALSE; batch_as_covar = FALSE; rank_norm = FALSE
@@ -98,6 +98,7 @@ for(i in 1:length(all.fun)){source(all.fun[i])}
 overwrite_previous <- FALSE
 add_founder_genotypes <- FALSE
 remove_strains <- NULL
+remove_strains <- c("CC027") #all but 2 were homozygous for the wrong genotype at the H2 locus
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
 
@@ -650,6 +651,20 @@ if(genotypes == "sequenced"){
         K <- readRDS(k.file)
     }
 }
+```
+
+```{r eval = FALSE}
+#test known marker 
+#the marker at chr 4, 107159244 bp
+#should have E genotypes for strains
+#CC051, CC059, CC012, and CC002
+
+marker.chr = 4
+marker.pos = 107159244
+test.strains <- c("CC051", "CC059", "CC012", "CC002")
+nearest.geno <- pull_genoprobpos(cc.genoprobs, map = map, chr = marker.chr, pos = marker.pos)
+strain.idx <- sapply(test.strains, function(x) grep(x, rownames(nearest.geno)))
+round(nearest.geno[strain.idx,])
 
 ```
 
