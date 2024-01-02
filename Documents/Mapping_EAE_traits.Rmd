@@ -97,8 +97,15 @@ for(i in 1:length(all.fun)){source(all.fun[i])}
 
 overwrite_previous <- FALSE
 add_founder_genotypes <- FALSE
-remove_strains <- NULL
-remove_strains <- c("CC027") #all but 2 were homozygous for the wrong genotype at the H2 locus
+
+#strains identified by remove_strains are excluded from all 
+#manipulations including normalization and batch corrections.
+#justficiations are as follows:
+#CC027 - all but 2 were homozygous for the wrong genotype at the H2 locus
+#NOD and 129 - are not used for mapping, and were not included in all
+#batches, so we cannot use them for normalization
+#remove_strains <- NULL
+remove_strains <- c("CC027", "NOD", "129") 
 #remove_strains <- c("CC051", "CC059") #closely related
 #remove_strains <- c("CC051") #pick one of them to keep
 
@@ -108,10 +115,10 @@ cc.color.scheme = "original"
 exclude.zeros = FALSE #if true, we exclude animals with a CDS of 0
 disease.thresh = 0 #maximum disease score considered disease-free
 
-cds.file.date = "November_2023" #date for CDS csv file to use in format month_year
-inc.file.date = "November_2023" #date for incidence csv files to use in format month_year
+cds.file.date = "December_2023" #date for CDS csv file to use in format month_year
+inc.file.date = "December_2023" #date for incidence csv files to use in format month_year
 
-nperm = 100
+nperm = 0
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -205,14 +212,46 @@ if(cc.color.scheme == "original"){
 cds <- read.csv(here("Data", paste0("CDS_", cds.file.date, ".csv")), strip.white = TRUE)
 incidence.files <- get.files(path = here("Data"), want = c(inc.file.date, "incidence"), 
     full.names = TRUE)
-incidence <- lapply(incidence.files, function(x) as.matrix(read.delim(x, row.names = 1, strip.white = TRUE)))
+incidence <- lapply(incidence.files, function(x) as.matrix(read.csv(x, row.names = 1, strip.white = TRUE)))
 names(incidence) <- gsub(".txt", "", basename(incidence.files))
 
+#take out any slashes in strain names in cds
+cds[,"Strain"]  <- gsub("/", "", cds[,"Strain"], fixed = TRUE)
 ```
 
 This run uses the CDS file from `r gsub("_", " ", cds.file.date)`.
 
 And the incidence files from `r gsub("_", " ", inc.file.date)`.
+
+## Remove excluded strains
+
+If any strains need to be removed from the analysis, do 
+that now before any numbers are manipulated.
+
+```{r remove_strains}
+#remove any empty rows that were inserted to visually separate
+#the founders from the rest of the strains
+cds.data.idx <- which(!is.na(cds[,"ID"]))
+cds <- cds[cds.data.idx,]
+
+for(i in 1:length(incidence)){
+    inc.data.idx <- which(!is.na(incidence[[i]][,1]))
+    incidence[[i]] <- incidence[[i]][inc.data.idx,]
+}
+
+
+#remove specified sterains from cds and incidence
+if(length(remove_strains) != 0){
+    remove.cds <- unlist(sapply(remove_strains, function(x) which(cds[,"Strain"] == x)))
+    cds <- cds[-remove.cds,]
+
+    for(i in 1:length(incidence)){
+        remove.incidence <- unlist(sapply(remove_strains, function(x) which(rownames(incidence[[i]]) == x)))
+        incidence[[i]] <- incidence[[i]][-remove.incidence,]
+    }
+}
+```
+
 
 ```{r batches}
 num.cds <- as.matrix(cds[,c("Classical.CDS", "AR.CDS", "Global.CDS")])
@@ -1177,11 +1216,6 @@ with plots for the FDR results. Significance thresholds
 from the permutations are also shown on the LOD traces.
 
 ```{r expand_matrices}
-
-if(length(remove_strains) != 0){
-    remove.idx <- sapply(remove_strains, function(x) which(mapping.strains == x))
-    mapping.strains <- mapping.strains[-remove.idx]
-}
 
 pheno.strains <- unlist(sapply(mapping.strains, function(x) pheno.strains[grep(x, pheno.strains)]))
 
@@ -2253,7 +2287,7 @@ and downstream of the peak marker.
 
 ```{r subset_snps}
 
-eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 7)
+eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 5)
 peak.chr <- eae.peak[1,"chr"]
 peak.pos <- eae.peak[1,"pos"]
 bp.buffer <- 21e6 #a buffer on either side of the peak
