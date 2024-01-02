@@ -118,7 +118,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "December_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "December_2023" #date for incidence csv files to use in format month_year
 
-nperm = 0
+nperm = 100
 
 if(nperm > 0){
     run_permutations <- TRUE
