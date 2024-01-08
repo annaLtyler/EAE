@@ -39,16 +39,18 @@ to prioritize genes within the mapped loci.
 ## Collecting and Processing Data
 
 From the Excel file that Emily sent, I saved the CDS_Individuals
-tab as a csv file. I deleted the header material and an empty row.
-I also converted all strings "C57BL/6" to "C57BL6" to match the 
-other B6 labels.
+tab as a csv file. I copied and pasted the body of the data table
+into a new excel file and saved it as a csv file. I then programatically
+deleted the empty row separating the founders and the CC lines and
+removed all slashes from strain names so that "C57BL/6" and "C57BL6" 
+match.
 
-I also copied the Incidence tab to three files and deleted the 
-line without entries. The files are:
+I also copied the Incidence tab to three csv files as I did above. 
+The files are named with the following pattern:
 
-* incidence_female.txt - incidence calculations for all females of each strain
-* incidence_male.txt - incidence calculations for all males of each strain
-* incidence_strain.txt - incidence calculations for each strain including both sexes
+* incidence_female_month_year.csv - incidence calculations for all females of each strain
+* incidence_male_month_year.csv - incidence calculations for all males of each strain
+* incidence_strain_month_year.csv - incidence calculations for each strain including both sexes
 
 ```{r get_arguments}
 rm(list = ls())
@@ -193,9 +195,9 @@ results.dir <- here("Results", paste("Zeros", strsplit(zero.treatment, " ")[[1]]
 if(!file.exists(results.dir)){dir.create(results.dir)}
 ```
 
-```{r load_libraries, warning = FALSE}
+```{r load_libraries, warning = FALSE, message = FALSE, error = FALSE}
 all.packages <- c("pheatmap", "qtl2", "ggplot2", "abind", "igraph", "knitr", "parallel",
-    "stringr")
+    "stringr", "grid")
 load_libraries(all.packages)
 cores = detectCores()-1
 ```
@@ -467,9 +469,8 @@ The batch correction procedure using batch as a covariate is as follows:
 ### Remove batch effects {.tabset .tabset-fade .tabset-pills}
 
 ```{r adj_cds}
-#only correct Classical and Global
-#change these indices to change which
-#traits are adjusted for batch effects
+#choose which phenotypes to batch 
+#correct using their indices.
 cds.idx <- c(1,2,3) 
 ```
 
@@ -1627,7 +1628,9 @@ for(ph in 1:length(cds.scans)){
     cat("####", names(cds.scans)[ph], "\n")
     peak.table <- find_peaks(cds.scans[[ph]], map = map, prob = 0.95)
     lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
-    print(kable(peak.table[lod.order[1:top.n],]))
+    top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
+    rownames(top.peaks) <- NULL
+    print(kable(top.peaks))
     cat("\n\n")
 }
 ```
@@ -1905,6 +1908,7 @@ We rank Z normalized the columns of each matrix
 before mapping.
 
 ```{r make_mats}
+
 incidence.strains <- rownames(incidence$incidence_strain)
 incidence.strains <- gsub("/", "", gsub(" ", "", incidence.strains))
 overall.inc <- apply(incidence$incidence_strain, 2, rankZ)
@@ -1919,9 +1923,63 @@ incidence.covar[1:nrow(incidence$incidence_female)] <- 0
 rownames(incidence.covar) <- rownames(inc.by.sex)
 ```
 
+### Overall Incidence Distributions - Not Normalized
+
+The following plots show the distributions of these traits
+across strains before normalizing. 
+
+```{r incidence_dist, fig.height = 3, fig.width = 9}
+par(mfrow = c(1,3))
+for(i in 1:ncol(incidence$incidence_strain)){
+    hist(incidence$incidence_strain[,i], main = colnames(incidence$incidence_strain)[i],
+        xlab = "Incidence")
+}
+```
+
+### Overall Incidence Distributions - Normalized
+
+The following plots show the distributions of these traits
+across strains after normalizing.
+
+```{r norm_incidence_dist, fig.height = 3, fig.width = 9}
+par(mfrow = c(1,3))
+for(i in 1:ncol(overall.inc)){
+    hist(overall.inc[,i], main = colnames(overall.inc)[i],
+        xlab = "Incidence")
+}
+```
+
+### Incidence Distributions by Sex - Not Normalized
+
+The following plots show the distributions of these traits
+split by sex. Males and females are stacked on top of each 
+other, so the distribution represents the overall distribution, 
+but they are colored separately.
+
+```{r inc_by_sex_pre_norm, fig.height = 3, fig.width = 9}
+pre.norm <- rbind(incidence$incidence_female, incidence$incidence_male)
+par(mfrow = c(1,3))
+for(i in 1:ncol(pre.norm)){
+    hist_with_points(pre.norm[,i], main = colnames(pre.norm)[i],
+        xlab = "Incidence", col = incidence.covar[,1]+3)
+    legend("topright", col = c(0,1)+3, pch = 16, legend = c("F", "M"))
+}
+```
+
+### Incidence Distributions by Sex - Normalized
+
+```{r inc_by_sex_norm, fig.height = 3, fig.width = 9}
+par(mfrow = c(1,3))
+for(i in 1:ncol(pre.norm)){
+    hist_with_points(inc.by.sex[,i], main = colnames(inc.by.sex)[i],
+        xlab = "Incidence", col = incidence.covar[,1]+3)
+    legend("topright", col = c(0,1)+3, pch = 16, legend = c("F", "M"))
+}
+```
+
 ```{r no_perm}
 #set run_permutations to FALSE
-#we are not ready to run permutations on incidence yet
+#if we are not ready to run permutations on incidence yet
 #run_permutations = FALSE
 ```
 
