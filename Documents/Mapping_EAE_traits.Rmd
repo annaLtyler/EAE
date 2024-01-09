@@ -2045,6 +2045,24 @@ if(run_permutations){
 ```
 
 
+### LOD Intervals: Incidence Overall {.tabset .tabset-fade .tabset-pills} 
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r inc_lod_peaks, results = "asis"}
+for(ph in 1:length(inc.scan.overall)){
+    cat("####", names(inc.scan.overall)[ph], "\n")
+    peak.table <- find_peaks(inc.scan.overall[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
+    rownames(top.peaks) <- NULL
+    print(kable(top.peaks))
+    cat("\n\n")
+}
+```
+
 ### LOD Traces: Incidence With Sex as Interactive Covariate {.tabset .tabset-fade .tabset-pills}
 
 
@@ -2064,6 +2082,24 @@ if(run_permutations){
 }
 
 #dev.off()
+```
+
+### LOD Intervals: Incidence with Sex as a Covariate {.tabset .tabset-fade .tabset-pills} 
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r inc_lod_peaks_int, results = "asis"}
+for(ph in 1:length(inc.scan.sex.int)){
+    cat("####", names(inc.scan.sex.int)[ph], "\n")
+    peak.table <- find_peaks(inc.scan.sex.int[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
+    rownames(top.peaks) <- NULL
+    print(kable(top.peaks))
+    cat("\n\n")
+}
 ```
 
 ## LOD Traces: Additive and Interactive Together {.tabset .tabset-fade .tabset-pills}
