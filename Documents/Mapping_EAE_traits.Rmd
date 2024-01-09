@@ -80,7 +80,7 @@ if(final_param){
 #===============================================================
 
 genotypes <- c("MRCA", "sequenced")
-genotypes <- genotypes[1]
+genotypes <- genotypes[2]
 
 if(is.na(b6_correction) || length(b6_correction) == 0){
 b6_correction = FALSE; batch_as_covar = FALSE; rank_norm = FALSE
