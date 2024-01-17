@@ -11,7 +11,14 @@ output:
 bibliography: eae.bib
 ---
 
+*Note*
+This workflow contains all the analyses that we did with 
+the EAE data. The other mapping workflow contains a subset
+of the analyses here for clarity and analysis run time.
+
+
 ## Introduction
+
 The purpose of this workflow is to start getting into data 
 sent by Dimitry Krementsov and his graduate studen Emily Holt 
 at UVM.
@@ -120,7 +127,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "December_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "December_2023" #date for incidence csv files to use in format month_year
 
-nperm = 1000
+nperm = 100
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -628,10 +635,9 @@ mega muga marker map from the Jackson Laboratory
 [resource for CC/DO mice](https://www.jax.org/research-and-faculty/genetic-diversity-initiative/tools-data/diversity-outbred-reference-data)
 
 ```{r MRCA_genotypes, warning = FALSE}
-cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
 
 if(genotypes == "MRCA"){
-
+    cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
     marker.info.file <- here("Data", "mouse", "mm_uwisc_v1.csv")
     marker.info <- read.csv(marker.info.file)
 
@@ -657,7 +663,7 @@ if(genotypes == "sequenced"){
     if(!file.exists(map.file)){
         file <- paste0("https://raw.githubusercontent.com/rqtl/", "qtl2data/master/CC/cc.zip")
         cc <- read_cross2(file)
-        map <- cc$pmap
+        map <- map
         saveRDS(map, map.file)
         
         cc.official <- rownames(cc$geno[[1]])
@@ -668,7 +674,7 @@ if(genotypes == "sequenced"){
         cc.genoprobs <- calc_genoprob(cc, cores = cores)    
         new.genoprobs <- cc.genoprobs
 
-        #add strains 83 and 84 to the genoprobs from the MRCA genotypes
+        #add strains 83 and 84 to the genoprobs 
         new.strains <- c("CC083", "CC084")
         new.strain.idx <- match(new.strains, rownames(cc.geno))
         for(i in 1:length(cc.genoprobs)){
@@ -692,6 +698,22 @@ if(genotypes == "sequenced"){
         K <- readRDS(k.file)
     }
 }
+
+```
+
+```{r eval = FALSE}
+#test known marker 
+#the marker at chr 4, 107159244 bp
+#should have E genotypes for strains
+#CC051, CC059, CC012, and CC002
+
+marker.chr = 4
+marker.pos = 107159244
+test.strains <- c("CC051", "CC059", "CC012", "CC002")
+nearest.geno <- pull_genoprobpos(cc.genoprobs, map = map, chr = marker.chr, pos = marker.pos)
+strain.idx <- sapply(test.strains, function(x) grep(x, rownames(nearest.geno)))
+round(nearest.geno[strain.idx,])
+
 ```
 
 If specified, add genoptypes for 129, NOD, and B6, so we 
@@ -731,6 +753,83 @@ if(add_founder_genotypes){
     mapping.K <- K
     mapping.strains <- eae.strains[grep("CC", eae.strains)]
 }
+```
+
+```{r geno_query, eval = FALSE}
+
+chr_col <- function(pos.col, max.alleles){
+    full.col <- rep(NA, max.alleles)
+    if(length(pos.col) == 1){     
+        buffer <- max.alleles - 2
+        full.col <- c(rep(pos.col, 2), rep("white", buffer))
+    }else{
+        buffer <- max.alleles - length(pos.col)
+        full.col <- c(pos.col, rep("white", buffer))
+    }
+    return(full.col)
+}
+
+hets <- lapply(cc.genoprobs, function(x) sapply(apply(x, 3, function(y) which(round(y, 2) == 0.5)), length))
+other.prob <- lapply(cc.genoprobs, function(x) sort(unique(unlist(apply(x, 3, function(y) unique(as.vector(round(y, 2))))))))
+boxplot(other.prob)
+
+h2.chr <- 17
+#cc.chr <- cc.genoprobs[[h2.chr]]
+strain.idx <- sapply(mapping.strains, function(x) grep(x, rownames(mapping.genoprobs[[1]])))
+cc.chr <- mapping.genoprobs[[h2.chr]][strain.idx,,]
+marker.pos <- map[[h2.chr]][match(dimnames(cc.chr)[[3]], names(map[[h2.chr]]))]
+marker.bounds <- get_plot_bounds(1, max(marker.pos), scale.factor = 0.1)
+#pdf("~/Desktop/CC_geno.pdf", width = 3, height = 8)
+all.col <- vector(mode = "list", length = nrow(cc.chr)*2)
+idx <- 1
+for(i in 1:nrow(cc.chr)){
+    
+    ind.geno <- round(cc.chr[i,,], 2) #one mouse's genotype for the chromosome
+    ind.col <- apply(ind.geno, 2, function(x) strain.colors[which(x > 0)])    
+    num.each <- sapply(ind.col, length)
+    num.chr <- max(num.each)
+    max.alleles <- max(2, num.chr)
+    mat <- t(sapply(ind.col, function(x) chr_col(x, max.alleles)))
+    rot.mat <- rotate.mat(rotate.mat(mat))
+    #rot.mat <- mat
+    
+    #layout(matrix(c(1,2), ncol = 2), widths = c(0.7, 1))
+    #par(mar = c(4,4,4,0))
+    #plot(c(1,dim(rot.mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
+    #axis(2, line = -2)
+    #mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
+    #par(mar = c(4,0,4,4))
+    #plot(c(1, dim(rot.mat)[2]), c(1, dim(rot.mat)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(mat)[2]+0.2), ylim = c(0.7, dim(mat)[1]+0.2), bg = "transparent")
+    #rasterImage(rot.mat, xleft = 0.5, ybottom = 0.5, xright = dim(mat)[2]+0.5, ytop = dim(mat)[1]+0.5, interpolate = FALSE, bg = "transparent")
+    #mtext(rownames(cc.chr)[i], side = 3)
+    
+    all.col[[idx]] <- rot.mat
+    idx = idx + 1
+    spacer.mat  <- matrix("white", nrow = dim(rot.mat)[1], ncol = 4)
+    all.col[[idx]] <- spacer.mat
+    idx = idx + 1
+}
+
+contact.sheet <- Reduce("cbind", all.col)
+png(file.path("~/Desktop", paste0("CC_Chr", h2.chr, "_geno.png")), width = ncol(contact.sheet)/4, height = 8, units = "in", res = 300)
+layout(matrix(c(1,2), ncol = 2), widths = c(0.03, 1))
+par(mar = c(4,4,4,0))
+plot(c(1,dim(mat)[2]), c(1, marker.bounds[2]), type = "n", axes = FALSE, xlab = "", ylab = "")
+axis(2, line = -4)
+mtext("Chromosome Position (Mb)", side = 2, line = 0.5)
+par(mar = c(4,0,4,4))
+plot(c(1, dim(contact.sheet)[2]), c(1, dim(contact.sheet)[1]), type = "n", axes = FALSE, xlab = "", ylab = "", xlim = c(0.7, dim(contact.sheet)[2]+0.2), ylim = c(0.7, dim(contact.sheet)[1]+0.2), bg = "transparent")
+rasterImage(contact.sheet, xleft = 0.5, ybottom = 0.5, xright = dim(contact.sheet)[2]+0.5, ytop = dim(contact.sheet)[1]+0.5, interpolate = FALSE, bg = "transparent")
+plot.dim <- par("usr")
+chr.coord <- which(contact.sheet[1,] != "white")
+consec.coord <- consec.pairs(chr.coord)
+consec.dist <- consec.coord[,2] - consec.coord[,1]
+label.coord <- chr.coord[which(consec.dist == 1)]
+#label.coord <- segment.region(plot.dim[1], plot.dim[2], nrow(cc.chr))
+text(x = label.coord+0.5, y = rep(nrow(contact.sheet)*1.02, nrow(cc.chr)), labels = sapply(strsplit(rownames(cc.chr), "/", fixed = TRUE), function(x) x[1]))
+dev.off()
+
+#dev.off()
 ```
 
 ## Allele Frequencies {.tabset .tabset-fade .tabset-pills}
@@ -1127,12 +1226,7 @@ from the permutations are also shown on the LOD traces.
 
 ```{r expand_matrices}
 
-#remove any strains not used in mapping
-mapping.strain.idx <- unlist(sapply(mapping.strains, function(x) grep(x, pheno.strains)))
-pheno.strains <- pheno.strains[mapping.strain.idx]
-
-#make a unique ID for each mouse that contains its strain and sex
-u_id <- as.vector(apply(cds[mapping.strain.idx,c(1:2,5)], 1, function(x) paste(x, collapse = "_")))
+pheno.strains <- unlist(sapply(mapping.strains, function(x) pheno.strains[grep(x, pheno.strains)]))
 
 K.idx <- sapply(mapping.strains, function(x) grep(x, rownames(mapping.K[[1]])))
 K.num <- sapply(mapping.strains, function(x) length(which(pheno.strains == x)))
@@ -1144,27 +1238,30 @@ names(exp.K) <- names(mapping.K)
 
 #create unique row and column names
 for(i in 1:length(exp.K)){
-    rownames(exp.K[[i]]) <- colnames(exp.K[[i]]) <- u_id
+    rownames(exp.K[[i]]) <- colnames(exp.K[[i]]) <- 1:length(expanded.idx)
 }
 
 expanded.genoprobs <- mapping.genoprobs
 for(i in 1:length(expanded.genoprobs)){
     expanded.genoprobs[[i]] <- mapping.genoprobs[[i]][expanded.idx,,]
-    rownames(expanded.genoprobs[[i]]) <- u_id
+    rownames(expanded.genoprobs[[i]]) <- 1:length(expanded.idx)
 }
 
 #align the phenotypes with the strains
-covar <- matrix(as.numeric(as.factor(cds[mapping.strain.idx,"Sex"])), ncol = 1)
-rownames(covar) <- u_id
+pheno.idx <- which(cds[,1] %in% pheno.strains)
+
+pheno.idx <- which(cds[,1] %in% pheno.strains)
+covar <- matrix(as.numeric(as.factor(cds[pheno.idx,"Sex"])), ncol = 1)
+rownames(covar) <- 1:length(covar)
 
 #test <- cds[pheno.idx,]
 
-mapping.pheno <- norm.cds[mapping.strain.idx,]
-rownames(mapping.pheno) <- u_id
+mapping.pheno <- norm.cds[pheno.idx,]
+rownames(mapping.pheno) <- 1:length(expanded.idx)
 
-mapping.factors <- factor.cds[mapping.strain.idx,]
+mapping.factors <- factor.cds[pheno.idx,]
 mapping.covar <- matrix(as.numeric(as.factor(mapping.factors[,"Sex"])), ncol = 1)
-rownames(mapping.covar) <- u_id
+rownames(mapping.covar) <- 1:nrow(mapping.covar)
 ```
 
 ### Heritability
@@ -1293,7 +1390,7 @@ plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
         cat(tab.level, names(scan.results)[ph], "\n")
         summary_thresholds = fdr_summarize(perm.results[[ph]], fdr_cl = 0.95, 
             geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
-            plot = FALSE, quartz = FALSE)
+            plot = TRUE, quartz = FALSE)
 
         finite.thresh <- which(is.finite(summary_thresholds))
 
@@ -1497,7 +1594,7 @@ plot_coefCC(global.coef, map = map, scan1_output = global.lod,
 
 
 plot_coefCC(global.coef, map = map, scan1_output = global.lod,
-    ylim = c(-2, 2), col = strain.colors, xlim = c(101, 119),
+    ylim = c(-2, 2), col = strain.colors, xlim = c(103e6, 119e6),
     main = "Global CDS Chr 14 QTL Window", top_panel_prop = 0.5)
 
 
@@ -1546,32 +1643,19 @@ for(ph in 1:length(cds.scans)){
 }
 ```
 
+## Map CDS with Strain Average (Sex Additive) 
 
-## Incidence {.tabset .tabset-fade .tabset-pills}
+We also used strain averages to map CDS. We calculated
+the strain averages individually for each sex and used
+sex as a covariate.
 
-Emily calculated an incidence level for each strain as a whole
-and separately by sex. Incidence values by strain are as follows.
+First we generated strain-mean versions of the genoprobs
+and kinship matrices and duplicated each row for the two sexes.
 
-```{r incidence, fig.width = 5, fig.height = 7, results = "asis"}
-
-for(i in 1:length(incidence)){
-    cat("###", names(incidence)[i], "\n")
-    imageWithText(incidence[[i]], main = names(incidence)[i], use.pheatmap.colors = TRUE)
-    cat("\n\n")
-}
+```{r assign_pheno}
+#try calculating strain averages from raw data
+mapping.pheno <- num.cds[pheno.idx,]
 ```
-
-
-## Map Incidence
-
-We also want to map incidence at the strain level.
-There are three incidence matrices. One has the incidence
-for each strain overall. The other two are split by sex.
-
-We mapped the overall incidence per strain on its own.
-Then we combined the incidence matrices split by sex 
-so we could use sex as an additive and interactive 
-covariate as we did with CDS.
 
 ```{r calc_avg_pheno}
 #calculate average phenotypes and construct new
@@ -1601,6 +1685,207 @@ rownames(mean.covar) <- ind.labels
 #norm.mean.pheno <- apply(mean.pheno.old, 2, rankZ)
 norm.mean.pheno <- mean.pheno
 ```
+
+```{r map_cds_avg, warning = FALSE}
+#do not exclude zeros for stain averages. These don't have
+#the same spike in the distribution
+cds.avg.scans.sex.add <- map_pheno(mean.genoprobs, norm.mean.pheno, mean.K, 
+    exclude.zeros = FALSE, addcovar = mean.covar,
+    results.file = file.path(results.dir, "scan1_results_cds_avg.RDS"))
+
+if(run_permutations){
+    cds.avg.scans.sex.add.perm <- perm_scans(mean.genoprobs, norm.mean.pheno, mean.K,
+        cds.avg.scans.sex.add, groups = NULL, exclude.zeros = FALSE, 
+        nperm = nperm, results.file = file.path(results.dir, "scan1perm_results_cds_avg.RDS"))
+}
+```
+
+### LOD Traces {.tabset .tabset-fade .tabset-pills}
+
+The following plots show the LOD traces for the strain averages of 
+CDS and the significance thresholds.
+
+```{r strain_avg_plots, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
+#pdf("~/Desktop/test.pdf")
+if(run_permutations){
+    fdr_summaries_sev_avg <- plot_fdr_fun(cds.avg.scans.sex.add, cds.avg.scans.sex.add.perm,
+        tab.level = "####")
+}else{
+    for(i in 1:length(cds.avg.scans.sex.add)){
+        cat("####", names(cds.avg.scans.sex.add)[i], "\n")
+        plot(cds.avg.scans.sex.add[[i]], map = map, main = names(cds.avg.scans.sex.add)[i])
+        cat("\n\n")
+    }
+}
+#dev.off()
+```
+
+### Strain Average Allele Effects {.tabset .tabset-fade .tabset-pills}
+
+```{r scan_coef_by_strain, fig.width = 7, fig.height = 7, results = "asis", eval = FALSE}
+
+cds.avg.coef.sex.add <- allele_coef(map.geno = mean.genoprobs, 
+    map.pheno = norm.mean.pheno, map.k = mean.K, scan.results = cds.avg.scans.sex.add,
+    addcovar = mean.covar,
+    lod.threshold = allele.thresh, exclude.zeros = FALSE, 
+    chr.lod.file = file.path(results.dir, "Chr.LOD.cds.Avg.RDS"), 
+    chr.coef.file = file.path(results.dir, "Chr.Coef.cds.Avg.RDS"))
+
+if(run_permutations){
+    #pdf("~/Desktop/test.pdf", width = 7, height = 7)
+    plot_coef_scans(coef.results = cds.avg.coef.sex.add, 
+        map.geno = mean.genoprobs, map.pheno = norm.mean.pheno, 
+        fdr_results = fdr_summaries_sev_avg, tab.level = "####",
+        sig_lines = "Genome-wide")
+}else{
+    plot_coef_scans(coef.results = cds.avg.coef.sex.add, 
+        map.geno = mean.genoprobs, map.pheno = norm.mean.pheno, 
+        fdr_results = NULL, tab.level = "####",
+        sig_lines = "Genome-wide")
+}
+
+#dev.off()
+```
+
+### Strain Average LOD intervals {.tabset .tabset-fade .tabset-pills}
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r lod_peaks_avg, results = "asis"}
+top.n <- 3
+for(ph in 1:length(cds.avg.scans.sex.add)){
+    cat("####", names(cds.avg.scans.sex.add)[ph], "\n")
+    peak.table <- find_peaks(cds.avg.scans.sex.add[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    print(kable(peak.table[lod.order[1:top.n],]))
+    cat("\n\n")
+}
+```
+
+
+## Map CDS with Strain Average (Sex Interacting)
+
+We also used sex as an interacting covariate when
+mapping CDS.
+
+```{r map_cds_avg_by_sex, warning = FALSE}
+#do not exclude zeros when using strain means. They
+#don't have the same spike in the distribution
+cds.avg.scans.sex.int <- map_pheno(mean.genoprobs, norm.mean.pheno, mean.K, 
+    exclude.zeros = FALSE, addcovar = mean.covar, intcovar = mean.covar,
+    results.file = file.path(results.dir, "scan1_results_cds_avg_by_sex_int.RDS"))
+
+if(run_permutations){
+    perm.groups <- strain.by.sex[,1]
+    cds.avg.perm.sex.add <- perm_scans(map.geno = mean.genoprobs, 
+        map.pheno = norm.mean.pheno, map.k = mean.K,
+        scan1.results = cds.avg.scans.sex.add, addcovar = mean.covar, 
+        groups = perm.groups, exclude.zeros = FALSE, nperm = nperm, 
+        results.file = file.path(results.dir, "scan1perm_results_cds_avg_sex.RDS"))
+
+    cds.avg.perm.sex.int <- perm_scans(map.geno = mean.genoprobs, 
+        map.pheno = norm.mean.pheno, map.k = mean.K, max.exp.lod = 40,
+        scan1.results = cds.avg.scans.sex.int, addcovar = covar, intcovar = mean.covar,
+        groups = perm.groups, exclude.zeros = FALSE, nperm = nperm,
+        results.file = file.path(results.dir, "scan1perm_results_cds_avg_sex_int.RDS"))
+}
+```
+
+### Interactive and Additive Together {.tabset .tabset-fade .tabset-pills}
+
+The following plots show the two LOD traces plotted on the same
+plot with significance thresholds.
+
+```{r plot_with_sig, fig.width = 9, fig.height = 5, results = "asis", warning = FALSE}
+
+for(i in 1:length(cds.avg.scans.sex.int)){
+    cat("####", names(cds.avg.scans.sex.int)[i],  "\n")
+    if(run_permutations){
+        sig.levels.int <- fdr_summarize(cds.avg.perm.sex.int[[i]], fdr_cl = 0.95, 
+            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
+            plot = FALSE)
+        sig.levels.add <- fdr_summarize(cds.avg.perm.sex.add[[i]], fdr_cl = 0.95, 
+            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
+            plot = FALSE)
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1], sig.levels.add[1], sig.levels.int[1]), na.rm = TRUE)*1.05
+    }
+    if(!run_permutations || !is.finite(ymax)){
+        ymax <- max(c(cds.avg.scans.sex.int[[i]][,1]))*1.05
+    }
+    plot(cds.avg.scans.sex.int[[i]], map = map, col = "red", 
+        main = names(cds.avg.scans.sex.add)[i], ylim = c(0, ymax))
+    if(run_permutations){
+        abline(h = sig.levels.int, lty = 1:2, col = "red")
+    }
+    plot(cds.avg.scans.sex.add[[i]], map = map, add = TRUE)
+    if(run_permutations){
+        abline(h = sig.levels.add, lty = 1:2, col = "darkblue")
+    }
+    cat("\n\n")
+}
+
+```
+
+### Interactive and Additive Differences {.tabset .tabset-fade .tabset-pills}
+
+The figures below show the LOD scores for the additive model 
+subtracted off the interactive model. The horizontal line
+is the maximum of the permuted values of the additive model
+subtracted off the maximum of the permuted values of the
+interactive model. This isn't exactly the significance threshold
+for a locus that significantly interacts with sex, but it 
+gives us a rough idea of where any interacting loci are
+most likely to reside.
+
+```{r int_test, fig.width = 9, fig.height = 5, results = "asis"}
+for(i in 1:length(cds.avg.scans.sex.add)){
+    cat("####", names(cds.avg.scans.sex.add)[i], "\n")
+    int.diff <- cds.avg.scans.sex.int[[i]] - cds.avg.scans.sex.add[[i]]
+    ylim <- c(min(int.diff[,1])*1.05, max(int.diff[,1])*1.05)
+    plot(int.diff, map = map, 
+    main = paste(names(cds.avg.scans.sex.add)[i], "(Interactive - Additive)"), 
+        ylim = ylim)
+
+    if(run_permutations){
+        int.p.dist <- -log10(cds.avg.perm.sex.int[[i]]$min_p)
+        add.p.dist <- -log10(cds.avg.perm.sex.add[[i]]$min_p)
+        mean.diff <- max(int.p.dist) - max(add.p.dist)
+        abline(h = mean.diff)
+    }
+    cat("\n\n")
+}
+
+
+```
+
+## Incidence {.tabset .tabset-fade .tabset-pills}
+
+Emily calculated an incidence level for each strain as a whole
+and separately by sex. Incidence values by strain are as follows.
+
+```{r incidence, fig.width = 5, fig.height = 7, results = "asis"}
+
+for(i in 1:length(incidence)){
+    cat("###", names(incidence)[i], "\n")
+    imageWithText(incidence[[i]], main = names(incidence)[i], use.pheatmap.colors = TRUE)
+    cat("\n\n")
+}
+```
+
+
+## Map Incidence
+
+We also want to map incidence at the strain level.
+There are three incidence matrices. One has the incidence
+for each strain overall. The other two are split by sex.
+
+We mapped the overall incidence per strain on its own.
+Then we combined the incidence matrices split by sex 
+so we could use sex as an additive and interactive 
+covariate as we did with CDS.
+
 
 ```{r avg_geno_k}
 #make genoprobs object and a kinship object for 
@@ -1719,6 +2004,33 @@ if(run_permutations){
 }
 ```
 
+```{r map_inc_by_sex_add, warning = FALSE}
+inc.scan.sex.add <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
+    exclude.zeros = FALSE, addcovar = incidence.covar,
+    results.file = file.path(results.dir, "scan1_results_incidence_sex_add.RDS"))
+
+if(run_permutations){    
+    incidence.sex.add.perm <- perm_scans(mean.genoprobs, inc.by.sex, mean.K,
+        inc.scan.sex.add, addcovar = incidence.covar, groups = NULL, 
+        exclude.zeros = FALSE, nperm = nperm,
+        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_sex_add.RDS")))   
+}
+```
+
+
+```{r map_inc_by_sex_int, warning = FALSE}
+inc.scan.sex.int <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
+    exclude.zeros = FALSE, addcovar = incidence.covar, intcovar = incidence.covar,
+    results.file = file.path(results.dir, "scan1_results_incidence_sex_int.RDS"))
+
+if(run_permutations){    
+    incidence.sex.int.perm <- perm_scans(mean.genoprobs, inc.by.sex, mean.K,
+        inc.scan.sex.add, groups = NULL, exclude.zeros = FALSE, nperm = nperm,
+        addcovar = incidence.covar, intcovar = incidence.covar,
+        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_sex_int.RDS")))   
+}
+```
+
 
 ### LOD traces: Incidence Overall {.tabset .tabset-fade .tabset-pills}
 
@@ -1762,6 +2074,119 @@ for(ph in 1:length(inc.scan.overall)){
 }
 ```
 
+### LOD Traces: Incidence With Sex as an Additive Covariate {.tabset .tabset-fade .tabset-pills}
+
+```{r plot_perm_add, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+#pdf("~/Desktop/test.pdf")
+if(run_permutations){
+    fdr_summaries_incidence_sex_add <- plot_fdr_fun(inc.scan.sex.add, 
+    incidence.sex.add.perm, tab.level = "####")
+}else{    
+    ymax <- max(sapply(inc.scan.sex.add, function(x) max(x[,1])))*1.05
+    for(i in 1:length(inc.scan.sex.add)){
+        cat("####", names(inc.scan.sex.add)[i], "\n")
+        plot(inc.scan.sex.add[[i]], map = map, main = names(inc.scan.sex.add)[i], 
+            ylim = c(0, ymax))
+        cat("\n\n")
+    }
+}
+
+#dev.off()
+```
+
+### LOD Intervals: Incidence with Sex as Additive {.tabset .tabset-fade .tabset-pills} 
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r inc_lod_peaks_add, results = "asis"}
+for(ph in 1:length(inc.scan.sex.add)){
+    cat("####", names(inc.scan.sex.add)[ph], "\n")
+    peak.table <- find_peaks(inc.scan.sex.add[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
+    rownames(top.peaks) <- NULL
+    print(kable(top.peaks))
+    cat("\n\n")
+}
+```
+
+### LOD Traces: Incidence With Sex as Interactive Covariate {.tabset .tabset-fade .tabset-pills}
+
+
+```{r plot_perm_inc, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+#pdf("~/Desktop/test.pdf")
+if(run_permutations){
+    fdr_summaries_incidence_sex_int <- plot_fdr_fun(inc.scan.sex.int, 
+    incidence.sex.int.perm, tab.level = "####")
+}else{    
+    ymax <- max(sapply(inc.scan.sex.int, function(x) max(x[,1])))*1.05
+    for(i in 1:length(inc.scan.sex.int)){
+        cat("####", names(inc.scan.sex.int)[i], "\n")
+        plot(inc.scan.sex.int[[i]], map = map, main = names(inc.scan.sex.int)[i], 
+            ylim = c(0, ymax))
+        cat("\n\n")
+    }
+}
+
+#dev.off()
+```
+
+### LOD Intervals: Incidence with Sex as a Covariate {.tabset .tabset-fade .tabset-pills} 
+
+The following tables show LOD peak intervals for the top 3 peaks from 
+each trait.
+
+
+```{r inc_lod_peaks_int, results = "asis"}
+for(ph in 1:length(inc.scan.sex.int)){
+    cat("####", names(inc.scan.sex.int)[ph], "\n")
+    peak.table <- find_peaks(inc.scan.sex.int[[ph]], map = map, prob = 0.95)
+    lod.order <- order(peak.table[,"lod"], decreasing = TRUE)
+    top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
+    rownames(top.peaks) <- NULL
+    print(kable(top.peaks))
+    cat("\n\n")
+}
+```
+
+## LOD Traces: Additive and Interactive Together {.tabset .tabset-fade .tabset-pills}
+
+```{r plot_inc_perm_both, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
+#pdf("~/Desktop/test.pdf")
+
+for(i in 1:length(inc.scan.sex.int)){
+    cat("###", names(inc.scan.sex.int)[i], "\n")
+    if(run_permutations){
+        ymax <- max(c(inc.scan.sex.int[[i]][,1]), fdr_summaries_incidence_sex_int[i,1:2])*1.05
+    }else{
+        ymax <- max(c(inc.scan.sex.int[[i]][,1]))*1.05
+    }
+    plot(inc.scan.sex.int[[i]], map = map, col = "red", 
+        main = names(inc.scan.sex.int)[i], ylim = c(0, ymax))
+    if(run_permutations){
+        abline(h = fdr_summaries_incidence_sex_int[i,1:2], lty = 1:2, col = "red")
+    }
+    plot(inc.scan.sex.add[[i]], map = map, add = TRUE)
+    if(run_permutations){
+        abline(h = fdr_summaries_incidence_overall[i,1:2], lty = 1:2, col = "darkblue")
+    }
+
+    diff.scan <- inc.scan.sex.int[[i]] - inc.scan.sex.add[[i]]
+    plot(diff.scan, map = map, main = "Interactive - Additive")
+    if(run_permutations){
+        int.p.dist <- -log10(incidence.sex.add.perm[[i]]$min_p)
+        add.p.dist <- -log10(incidence.sex.int.perm[[i]]$min_p)
+        mean.diff <- max(int.p.dist) - max(add.p.dist)
+        abline(h = mean.diff)
+    }
+
+    cat("\n\n")
+}
+#dev.off()
+```
+
 ## Comparing Scans
 
 There is a question as to whether the scans of similar traits 
@@ -1778,6 +2203,8 @@ trait.order <- hclust(dist(inc.cor))$order
 pheatmap(inc.cor[trait.order, trait.order], display_numbers = TRUE, 
     main = "Incidence Trait Correlations", cluster_cols = FALSE, cluster_rows = FALSE)
 ```
+
+
 
 The following heatmap shows the correlation between
 the maps of incidence. Compare this to the correlation
@@ -1831,7 +2258,18 @@ in the LOD traces.
 
 overall.lod.mat <- sapply(inc.scan.overall, function(x) x[,1])
 colnames(overall.lod.mat) <- paste0(colnames(overall.lod.mat), "_overall")
-pheatmap(cor(overall.lod.mat))
+sex.add.lod.mat <- sapply(inc.scan.sex.add, function(x) x[,1])
+colnames(sex.add.lod.mat) <- paste0(colnames(sex.add.lod.mat), "_additive")
+sex.int.lod.mat <- sapply(inc.scan.sex.int, function(x) x[,1])
+colnames(sex.int.lod.mat) <- paste0(colnames(sex.int.lod.mat), "_interactive")
+
+full.mat <- cbind(overall.lod.mat, sex.add.lod.mat, sex.int.lod.mat)
+pheatmap(cor(full.mat))
+
+```
+
+```{r compare_avg_ind, eval = FALSE}
+plot(cds.scans[[1]][,1], cds.avg.scans.sex.add[[1]][,1])
 ```
 
 ## Large QTL Allele Effects {.tabset .tabset-fade .tabset-pills}
@@ -1839,7 +2277,6 @@ pheatmap(cor(overall.lod.mat))
 There are some larger QTL in the incidence scans. Here we look
 at some of the allele effects to get an idea of how robust these
 QTL are.
-
 
 ```{r large_qtl_allele_effects}
 
@@ -1883,22 +2320,17 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
     strain.effects <- apply(marker.geno[common.strains,], 2, function(x) annot.df[which(x > 0),1])
     strain.order <- order(sapply(strain.effects, function(x) median(x, na.rm = TRUE)))
 
-    imageWithText(marker.geno[ordered.names,strain.order], 
+    pheatmap(marker.geno[ordered.names,strain.order], annotation_row = annot.df,
+        cluster_rows = FALSE, cluster_cols = FALSE, 
         main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
-        signif(marker.pos[,"pos"], 2), "Mb"), use.pheatmap.colors = TRUE, 
-        show.text = FALSE)
-
-    #pheatmap(marker.geno[ordered.names,strain.order], annotation_row = annot.df,
-    #    cluster_rows = FALSE, cluster_cols = FALSE, 
-    #    main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
-    #    signif(marker.pos[,"pos"], 2), "Mb"))
+        signif(marker.pos[,"pos"], 2), "Mb"))
 
 
     boxplot(strain.effects[strain.order], col = strain.colors[strain.order],
         main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
         signif(marker.pos[,"pos"], 2), "Mb\nLOD =", signif(marker.lod, 2)),
         ylab = trait.name)
-    segments(x0 = 0, x1 = length(strain.order)+0.8, y0 = 0)
+    abline(h = 0)
 
     result <- list("marker.geno" = marker.geno, "trait.vals" = annot.df,
         "strain.effects" = strain.effects[strain.order])
@@ -1906,106 +2338,48 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
 }
 ```
 
-### Global CDS - Individuals
+### EAE
 
-The matrix is too large to show the individual labels.
-To see labels for individual mice, see the file called
-Global_CDS_Allele_Effects.png in the results folder.
-
-In all heat maps, the animals are sorted from lowest
-phenotype value at the top to greatest phenotype value
-at the bottom.
-
-```{r global_cds_allele_effects, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-par(mar = c(4,8,4,4))
-test <- plot_max_allele_effects("Global", mapping.geno = expanded.genoprobs, 
-    mapping.pheno = mapping.pheno, mapping.K = exp.K, map = map, 
-    scan.results = cds.scans)
-
-png(file.path(results.dir, "Global_CDS_Allele_Effects.png"), height = 40, 
-    width = 5, units = "in", res = 300)
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.07))
-par(mar = c(4,8,4,4))
-plot_max_allele_effects("Global", mapping.geno = expanded.genoprobs, 
-    mapping.pheno = mapping.pheno, mapping.K = exp.K, map = map, 
-    scan.results = cds.scans)
-dev.off()
-```
-
-### Incidence - EAE Chr 4
-
-```{r eae_allele_effects_4, fig.height = 10, fig.width = 5}
-#png("~/Desktop/test.png", height = 10, width = 5, units = "in", res = 300)
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs, 
+```{r eae_allele_effects}
+trait.name = "EAE"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+test <- plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
-#dev.off() 
+#dev.off()
+
 ```
 
-### Incidence - EAE Chr 14
+### Combined Type
 
-```{r eae_allele_effects_14, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
-    scan.results = inc.scan.overall, chr = 14)
-```
-
-
-### Incidence - AR Major subtype
-
-```{r ar_allele_effects, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("AR.Major.Subtype", mapping.geno = strain.genoprobs, 
+```{r combined_allele_effects}
+trait.name = "Subtype..Combined.Type"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
+#dev.off()
 ```
 
-### Incidence - Remitting
+### Classical Only
 
-```{r remitting_allele_effects, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Remitting.EAE", mapping.geno = strain.genoprobs, 
+```{r classical_allele_effects}
+trait.name = "Subtype..Classical.only"
+#pdf(paste0("~/Desktop/test_", trait.name, ".pdf"))
+plot_max_allele_effects(trait.name, mapping.geno = strain.genoprobs, 
     mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
+#dev.off()
+
 ```
 
 
-### Incidence - Classical Only
+## EAE Chr 4
 
-```{r classical_allele_effects, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Subtype..Classical.only", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
-    scan.results = inc.scan.overall)
-```
-
-
-### Incidence - Relapsing Remitting Chr 18
-
-```{r relapsing_remitting_allele_effects_18, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Relapsing.Remitting", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
-    scan.results = inc.scan.overall)
-```
-
-### Incidence - Relapsing Remitting Chr 5
-
-```{r relapsing_remitting_allele_effects_5, fig.height = 10, fig.width = 5}
-layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Relapsing.Remitting", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
-    scan.results = inc.scan.overall, chr = 5)
-```
-
-## Classic Allele Effect Plots {.tabset .tabset-fade .tabset-pills}
-
-The plots below show the classic allele effect plot for
-the QTLs above. If there are allele frequcney issues,
-we try to cut those out.
+The plot below shows the classic allele effect plot for
+chromosome 4 for EAE incidence. There are some allele
+frequency issues just above 60 Mb and again at about 
+125 Mb that I've cut out of the image.
 
 ```{r inc_allele, fig.width = 8, fig.height = 8}
 #round genotypes to squash out the wild associations we 
@@ -2015,113 +2389,222 @@ for(i in 1:length(rounded.geno)){
     rounded.geno[[i]] <- round(rounded.geno[[i]], 2)
 }
 
-rounded.expanded <- expanded.genoprobs
-for(i in 1:length(rounded.geno)){
-    rounded.expanded[[i]] <- round(rounded.expanded[[i]], 2)
+eae4.lod <- scan1(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
+eae4.coef <- scan1coef(rounded.geno[,4], overall.inc[,1], strain.K[[4]])
+
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,100e6),
+    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
+    main = "EAE Incidence Chr 4")
+
+plot_coefCC(eae4.coef, map = map, scan1_output = eae4.lod, xlim = c(0,100e6),
+    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5,
+    main = "EAE Incidence Chr 4 window")
+
+
+```
+
+## SNPs
+
+For large QTL, that that on Chr 4 for EAE incidence, we 
+are interested in identifying individual SNPs that match 
+the allele effect patterns. 
+
+We want to see if there are any SNPs in this location 
+that match the allele effect pattern. I downloaded the
+CC SNPs from the [UNC website](https://csbio.unc.edu/CCstatus/CCGenomes/).
+I downloaded the file labeled "Sequenced samples (GigaMUGA 20.7Mb)"
+on August 16, 2023.
+
+```{r cc_snps}
+snps <- read.csv(here("Data", "SEQgenotypes.csv"))
+snp.info <- snps[,c(1:3)]
+cc.idx <- lapply(incidence.strains, function(x) grep(x, colnames(snps)))
+has.snp <- which(sapply(cc.idx, length) > 0)
+
+snp.table <- snps[,unlist(cc.idx[has.snp])]
+colnames(snp.table) <- incidence.strains[has.snp]
+```
+
+We isolated the region around the LOD peak, 4 Mb up
+and downstream of the peak marker.
+
+```{r subset_snps}
+
+eae.peak <- find_peaks(inc.scan.overall$EAE, map = map, threshold = 5)
+peak.chr <- eae.peak[1,"chr"]
+peak.pos <- eae.peak[1,"pos"]
+bp.buffer <- 21e6 #a buffer on either side of the peak
+
+chr.idx <- which(snp.info[,"chromosome"] == peak.chr)
+above.min <- which(snp.info[,"position.b38."] >= peak.pos-bp.buffer)
+below.max <- which(snp.info[,"position.b38."] <= peak.pos+bp.buffer)
+peak.idx <- Reduce("intersect", list(chr.idx, above.min, below.max))
+peak.info <- snp.info[peak.idx,]
+
+peak.snps <- as.matrix(snp.table[peak.idx,])
+#there are a bunch of SNPs that are labeled N or H
+#We will set these to NA
+peak.snps[which(peak.snps == "N")] <- NA
+peak.snps[which(peak.snps == "H")] <- NA
+```
+
+We converted the SNP matrix to a numeric matrix.
+
+```{r convert_num}
+#convert to numeric. Use the minor allele in this 
+#data set at the minor allele
+
+num.snps <- matrix(NA, nrow = nrow(peak.snps), ncol = ncol(peak.snps))
+dimnames(num.snps) <- dimnames(peak.snps)
+for(i in 1:nrow(peak.snps)){
+    snp.calls <- peak.snps[i,]
+    u_snps <- unique(snp.calls[which(!is.na(snp.calls))])
+    if(length(u_snps) == 0){next()}
+    snp_freq <- sapply(u_snps, function(x) length(which(snp.calls == x)))
+    min.allele <- which.min(snp_freq)
+    #assign minor allele
+    num.snps[i,which(snp.calls == names(min.allele))] <- 0
+    #if there is another allele, assign it 1
+    if(length(u_snps) > 1){
+        maj.allele <- setdiff(names(snp_freq), names(min.allele))
+        num.snps[i,which(snp.calls == maj.allele)] <- 1
+    }
+}
+```
+
+```{r ordered_snps, eval = FALSE}
+common.ind <- intersect(colnames(num.snps), rownames(overall.inc))
+eae_order <- order(overall.inc[common.ind,1])
+eae_df <- data.frame("EAE" = overall.inc[common.ind,1])
+pheatmap(t(num.snps[,common.ind[eae_order]]), cluster_rows = FALSE, cluster_cols = FALSE,
+    show_colnames = FALSE, annotation_row = eae_df)
+
+ind.cor <- cor(num.snps, use = "pairwise.complete.obs")
+pheatmap(ind.cor)
+marker.cor <- cor(t(num.snps), use = "pairwise.complete.obs")
+pheatmap(marker.cor, cluster_rows = FALSE, cluster_cols = FALSE, show_rownames = FALSE, show_colnames = FALSE)
+```
+
+And used qtl2 to scan the SNPs.
+
+```{r snp_to_genoprobs}
+snp.geno <- abind(num.snps, 1-num.snps, along = 3)
+snp.genoprobs <- list(aperm(snp.geno, c(2,3,1)))
+dimnames(snp.genoprobs[[1]])[[2]] <- c("A", "B")
+names(snp.genoprobs) <- peak.chr
+attr(snp.genoprobs, "crosstype") <- "risib"
+attr(snp.genoprobs, "is_x_chr") <- c("4" = FALSE)
+attr(snp.genoprobs, "alleles") <- c("A", "B")
+attr(snp.genoprobs, "alleleprobs") <- FALSE
+attr(snp.genoprobs, "class") <- c("calc_genoprob", "list")
+
+rownames(overall.inc) <- str_squish(rownames(overall.inc))
+```
+
+There are no individual SNPs that explain the haplotype
+effects in the QTL. The peak of the Chr 4 QTL is marked
+by the red line. The horizontal black line shows p = 0.01.
+Multiple SNPs in the region pass this threshold, but none
+stand out as particularly interesting.
+
+```{r scan_snps, fig.width = 7, fig.height = 4}
+snp.scan <- scan1(snp.genoprobs, overall.inc[,1,drop=FALSE])
+snp.scan.perm <- scan1perm(snp.genoprobs, overall.inc[,1,drop=FALSE], n_perm = 100)
+plot(as.numeric(peak.info[,3])/1e6, snp.scan[,1], type = "l",
+    xlab = "Chromosome 4 Position (Mb)", ylab = "SNP LOD", ylim = c(0,3))
+abline(v = peak.pos/1e6, col = "red")
+abline(h = summary(snp.scan.perm, alpha = alpha), lty = c(1,2))
+```
+
+### All SNPs
+
+We are also interested in a full scan of the SNPs to see if there
+is anything interesting in the genome that we did not see in the
+original scan.
+
+```{r all_snps}
+u_chr <- c(1:19, "X")
+
+peak.info <- snp.info
+peak.snps <- as.matrix(snp.table)
+#there are a bunch of SNPs that are labeled N or H
+#We will set these to NA
+peak.snps[which(peak.snps == "N")] <- NA
+peak.snps[which(peak.snps == "H")] <- NA
+
+
+num.snps <- matrix(NA, nrow = nrow(peak.snps), ncol = ncol(peak.snps))
+dimnames(num.snps) <- dimnames(peak.snps)
+for(i in 1:nrow(peak.snps)){
+    snp.calls <- peak.snps[i,]
+    u_snps <- unique(snp.calls[which(!is.na(snp.calls))])
+    if(length(u_snps) == 0){next()}
+    snp_freq <- sapply(u_snps, function(x) length(which(snp.calls == x)))
+    min.allele <- which.min(snp_freq)
+    #assign minor allele
+    num.snps[i,which(snp.calls == names(min.allele))] <- 0
+    #if there is another allele, assign it 1
+    if(length(u_snps) > 1){
+        maj.allele <- setdiff(names(snp_freq), names(min.allele))
+        num.snps[i,which(snp.calls == maj.allele)] <- 1
+    }
 }
 
-```
+chr_idx <- lapply(u_chr, function(x) which(snp.info[,"chromosome"] == x))
+snp.geno <- lapply(chr_idx, function(x) abind(num.snps[x,], 1-num.snps[x,], along = 3))
+for(ch in 1:length(u_chr)){
+    snp.geno[[ch]] <- aperm(snp.geno[[ch]], c(2,3,1))
+    dimnames(snp.geno[[1]])[[2]] <- c("A", "B")
+}
+names(snp.geno) <- u_chr
+attr(snp.geno, "crosstype") <- "risib"
+is_x <- c(rep(FALSE, 19), TRUE)
+names(is_x) <- u_chr
+attr(snp.geno, "is_x_chr") <- is_x
+attr(snp.geno, "alleles") <- c("A", "B")
+attr(snp.geno, "alleleprobs") <- FALSE
+attr(snp.geno, "class") <- c("calc_genoprob", "list")
 
-### Global CDS - Individual Chr 14
+rownames(overall.inc) <- str_squish(rownames(overall.inc))
 
-```{r allele_effects_global_14}
-chr <- 14
-trait <- "Global"
+snp.scan <- scan1(snp.geno, overall.inc[,1,drop=FALSE])
+snp.scan.perm <- scan1perm(snp.geno, overall.inc[,1,drop=FALSE], n_perm = 100)
 
-lod.scan <- scan1(rounded.expanded[,chr], mapping.pheno[,trait], exp.K[[chr]])
-coef.scan <- scan1coef(rounded.expanded[,chr], mapping.pheno[,trait], exp.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
+sig.lines <- summary(snp.scan.perm, alpha = alpha)
 
-### Incidence - EAE Chr 4
+pdf(here("Results", "SNP_Scan.pdf"), width = 30, height = 5)
+layout(matrix(c(1:20), nrow = 1))
+ymax <- max(c(snp.scan[,1], sig.lines[,1]), na.rm = TRUE)*1.2
+for(ch in 1:length(u_chr)){
+    chr.table <- snp.info[chr_idx[[ch]],]
 
-```{r allele_effects_inc_eae_4}
-chr <- 4
-trait <- "EAE"
+    if(ch == 1){
+    par(mar = c(4,4,4,0))
+    }else{
+        par(mar = c(4,0,4,0))
+    }
+    
+    chr.min <- min(as.numeric(chr.table[,3])/1e6)
+    chr.max <- max(as.numeric(chr.table[,3])/1e6)
 
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
+    plot.new()
+    plot.window(xlim = c(chr.min, chr.max), ylim = c(0, ymax))
+    if(ch %% 2 == 0){
+        draw.rectangle(chr.min, chr.max, 0, ymax, fill = "lightgray", border.col = NA)
+    }
 
-### Incidence - EAE Chr 14
+    points(as.numeric(chr.table[,3])/1e6, snp.scan[chr_idx[[ch]],1], type = "h")
+    axis(1)
+    mtext(u_chr[ch], side = 1, line = 2.5)
 
-```{r allele_effects_inc_eae_14}
-chr <- 14
-trait <- "EAE"
+    if(ch == 1){
+        axis(2)
+    }
 
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
 
-### Incidence - AR Major Subtype Chr 9
+    abline(h = sig.lines[,1], lty = c(1,2))
+}
 
-```{r allele_effects_inc_AR_9}
-chr <- 9
-trait <- "AR.Major.Subtype"
-
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
-
-### Incidence - Remitting Chr 6
-
-```{r allele_effects_inc_remitting_6}
-chr <- 6
-trait <- "Remitting.EAE"
-
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
-
-### Incidence - Classical Only Chr 5
-
-```{r allele_effects_inc_classical_5}
-chr <- 5
-trait <- "Subtype..Classical.only"
-
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
-
-### Incidence - Relapsing Remitting Chr 18
-
-```{r allele_effects_inc_rr_18}
-chr <- 18
-trait <- "Relapsing.Remitting"
-
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
-```
-
-### Incidence - Relapsing Remitting Chr 5
-
-```{r allele_effects_inc_rr_5}
-chr <- 5
-trait <- "Relapsing.Remitting"
-
-lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
-plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
-    ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
+mtext("EAE", side = 3, outer = TRUE, line = -2.5)
+dev.off()
 ```
