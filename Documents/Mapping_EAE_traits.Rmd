@@ -120,7 +120,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "December_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "December_2023" #date for incidence csv files to use in format month_year
 
-nperm = 1000
+nperm = 10
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -1840,6 +1840,10 @@ There are some larger QTL in the incidence scans. Here we look
 at some of the allele effects to get an idea of how robust these
 QTL are.
 
+In all heat maps, the animals are sorted from lowest
+phenotype value at the top to greatest phenotype value
+at the bottom. The alleles are sorted from lowest effect
+to highest effect going from left to right
 
 ```{r large_qtl_allele_effects}
 
@@ -1886,7 +1890,7 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
     imageWithText(marker.geno[ordered.names,strain.order], 
         main = paste(trait.name, "Chr", marker.pos[,"chr"], ":", 
         signif(marker.pos[,"pos"], 2), "Mb"), use.pheatmap.colors = TRUE, 
-        show.text = FALSE)
+        show.text = FALSE, col.text.rotation = 0)
 
     #pheatmap(marker.geno[ordered.names,strain.order], annotation_row = annot.df,
     #    cluster_rows = FALSE, cluster_cols = FALSE, 
@@ -1910,11 +1914,8 @@ plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno,
 
 The matrix is too large to show the individual labels.
 To see labels for individual mice, see the file called
-Global_CDS_Allele_Effects.png in the results folder.
-
-In all heat maps, the animals are sorted from lowest
-phenotype value at the top to greatest phenotype value
-at the bottom.
+Global_CDS_Allele_Effects.png in the results folder. The
+order is the same as shown in the boxplot.
 
 ```{r global_cds_allele_effects, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
