@@ -1237,7 +1237,7 @@ map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
 
 perm_scans <- function(map.geno, map.pheno, map.k, scan1.results, 
     addcovar = NULL, intcovar = NULL, groups = NULL, nperm = nperm, 
-    max.exp.lod = 20, n.founders = 8, exclude.zeros = TRUE, 
+    max.exp.lod = 100, n.founders = 8, exclude.zeros = TRUE, 
     results.file = file.path(results.dir, "perm.RDS"), round.digs = 2){
 
     #permutations for Matt's FDR method (see https://github.com/j-matthew-mahoney/cdf-fdrci.git)
@@ -1713,8 +1713,9 @@ inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K,
     results.file = file.path(results.dir, "scan1_results_overall_incidence_test.RDS"))
 
 if(run_permutations){    
-    incidence.overall.perm <- perm_scans(strain.genoprobs, overall.inc, strain.K,
-        inc.scan.overall, groups = NULL, exclude.zeros = FALSE, nperm = nperm,
+    incidence.overall.perm <- perm_scans(map.geno = strain.genoprobs, map.pheno = overall.inc, 
+        map.k = strain.K, scan1.results = inc.scan.overall, groups = NULL, exclude.zeros = FALSE, 
+        nperm = nperm,
         results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall.RDS")))   
 }
 ```

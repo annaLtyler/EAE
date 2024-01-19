@@ -22,8 +22,7 @@ scan1perm_stats = function(genoprobs, pheno, addcovar = NULL, kinship = NULL, in
       kinship = kinship, intcovar = intcovar, cores = cores)
     #plot(-log10(null_p), map = map)
 
-    # Compute eCDF data if there are data to compute with
-    if(length(unique(null_p) >=3)){
+    # Compute eCDF data
 
       curr_hist = hist(null_p, breaks = breaks, plot = FALSE)
       curr_ecdf = as.matrix(cumsum(curr_hist$counts) / sum(curr_hist$counts))
@@ -57,14 +56,9 @@ scan1perm_stats = function(genoprobs, pheno, addcovar = NULL, kinship = NULL, in
       fdr_hat = apply(fdr_hat, 1, function(x){min(x, 1)})
       
       # Output
-      null_stats = list(fdr_hat, var_fdr, min_p, breaks, k, nind)
-      names(null_stats) = c("fdr_hat", "var_fdr", "min_p", "breaks", "k", "nind")
+      null_stats = list("fdr_hat" = fdr_hat, "var_fdr" = var_fdr, "min_p" = min_p, 
+        "breaks" = breaks, "k" = k, "nind" = nind)
       return(null_stats)
-    }else{
-    #if we didn't generate a meaningful null
-    null_stats <- list("fdr_hat" = NA, "var_fdr" = matrix(NA, ncol = 1), "min_p" = matrix(NA, ncol = 1),
-      "min_p" = NA, "breaks" = NA, k = dim(genoprobs[[1]])[2], nind = length(pheno))
-    return(null_stats)
-    } #end case for if we don't have null data
+    
   } #end looping over permutations
 } #end function
