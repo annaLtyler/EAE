@@ -127,7 +127,7 @@ disease.thresh = 0 #maximum disease score considered disease-free
 cds.file.date = "December_2023" #date for CDS csv file to use in format month_year
 inc.file.date = "December_2023" #date for incidence csv files to use in format month_year
 
-nperm = 100
+nperm = 10
 
 if(nperm > 0){
     run_permutations <- TRUE
@@ -1269,7 +1269,7 @@ rownames(mapping.covar) <- 1:nrow(mapping.covar)
 The heritability of CDS is shown below.
 
 ```{r herit, fig.width = 5, fig.height = 5}
-overall.k.file <- here("Data", "kinship_overall.RDS")
+overall.k.file <- here("Data", "kinship_overall_nonames.RDS")
 if(!file.exists(overall.k.file) || overwrite_previous){
     overall.K <- calc_kinship(expanded.genoprobs, "overall")
     saveRDS(overall.K, overall.k.file)
@@ -1546,6 +1546,7 @@ if(run_permutations){
         exclude.zeros = exclude.zeros, nperm = nperm, 
         results.file = file.path(results.dir, "scan1perm_results_cds.RDS"))
 }
+stop()
 ```
 
 
@@ -1554,8 +1555,10 @@ if(run_permutations){
 ```{r plot_cds_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
 #plot the scans, and FDR results
 if(run_permutations){
+    #pdf("~/Desktop/test_orig.pdf")
     fdr_summaries_cds <- plot_fdr_fun(cds.scans, cds.perm, 
         tab.level = "####")
+    #dev.off()
 }else{
     for(i in 1:length(cds.scans)){
         cat("####", names(cds.scans)[i], "\n")

@@ -1144,27 +1144,25 @@ names(exp.K) <- names(mapping.K)
 
 #create unique row and column names
 for(i in 1:length(exp.K)){
-    rownames(exp.K[[i]]) <- colnames(exp.K[[i]]) <- u_id
+    rownames(exp.K[[i]]) <- colnames(exp.K[[i]]) <- 1:length(u_id)
 }
 
 expanded.genoprobs <- mapping.genoprobs
 for(i in 1:length(expanded.genoprobs)){
     expanded.genoprobs[[i]] <- mapping.genoprobs[[i]][expanded.idx,,]
-    rownames(expanded.genoprobs[[i]]) <- u_id
+    rownames(expanded.genoprobs[[i]]) <- 1:length(u_id)
 }
 
 #align the phenotypes with the strains
 covar <- matrix(as.numeric(as.factor(cds[mapping.strain.idx,"Sex"])), ncol = 1)
-rownames(covar) <- u_id
-
-#test <- cds[pheno.idx,]
+rownames(covar) <- 1:length(u_id)
 
 mapping.pheno <- norm.cds[mapping.strain.idx,]
-rownames(mapping.pheno) <- u_id
+rownames(mapping.pheno) <- 1:length(u_id)
 
 mapping.factors <- factor.cds[mapping.strain.idx,]
 mapping.covar <- matrix(as.numeric(as.factor(mapping.factors[,"Sex"])), ncol = 1)
-rownames(mapping.covar) <- u_id
+rownames(mapping.covar) <- 1:length(u_id)
 ```
 
 ### Heritability
@@ -1237,7 +1235,7 @@ map_pheno <- function(map.geno, map.pheno, map.K, addcovar = NULL,
 
 perm_scans <- function(map.geno, map.pheno, map.k, scan1.results, 
     addcovar = NULL, intcovar = NULL, groups = NULL, nperm = nperm, 
-    max.exp.lod = 100, n.founders = 8, exclude.zeros = TRUE, 
+    max.exp.lod = 20, n.founders = 8, exclude.zeros = TRUE, 
     results.file = file.path(results.dir, "perm.RDS"), round.digs = 2){
 
     #permutations for Matt's FDR method (see https://github.com/j-matthew-mahoney/cdf-fdrci.git)
@@ -1284,7 +1282,10 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
     return(perm.data)
 }
 
-
+#plots LOD traces with significance thresholds and returns a matrix
+#with traits in rows and the different significance thresholds for
+#LOD scores in columns corresponding to both standard and FDR-adjusted 
+#LOD scores.
 plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
 
     fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = 5)
@@ -1315,12 +1316,51 @@ plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
     invisible(fdr_summaries)
 }
 
+#This function is similar to above, but uses permutation results
+#from qtl2's scan1perm, rather than the fdr scan.
+plot_pval_fun <- function(scan.results, perm.results, tab.level = "###"){
+
+    sig_summaries <- t(summary(perm.results, alpha = alpha))
+    finite.thresh <- which(is.finite(sig_summaries))
+    fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = length(alpha))
+    rownames(fdr_summaries) <- names(scan.results)
+    colnames(fdr_summaries) <- paste0("FDR ", alpha*100, "%")
+
+    for(ph in 1:length(scan.results)){
+        cat(tab.level, names(scan.results)[ph], "\n")
+
+        trait.p <- lod2p(scan.results[[ph]][,1], nind = attr(scan.results[[ph]], "sample_size"), k = 8)
+        trait.fdr <- p.adjust(trait.p, "fdr")
+        #plot(scan.results[[ph]][,1], trait.fdr, ylim = c(0,1))
+        #abline(h = alpha)
+        
+        fdr.idx <- lapply(alpha, function(x) which(round(trait.fdr, 2) == x))
+        fdr.thresh <- unlist(lapply(fdr.idx, function(x) if(length(x) > 0){scan.results[[ph]][x]}else{NA}))
+        fdr_summaries[ph,] <- fdr.thresh
+
+        maxy <- max(c(scan.results[[ph]][,1], 
+            sig_summaries[finite.thresh], na.rm = TRUE))*1.1
+        par(mar = c(4, 4, 4, 8))
+        plot(scan.results[[ph]], map = map, main = names(scan.results)[ph], 
+            ylim = c(0, maxy))
+        abline(h = sig_summaries[ph,])
+        abline(h = fdr_summaries[ph,])
+        plot.dim <- par("usr")
+        par(xpd = TRUE)
+        text(x = plot.dim[2], y = sig_summaries[ph,], 
+            labels = colnames(sig_summaries), cex = 0.5, adj = 0)
+        par(xpd = FALSE)
+        cat("\n\n")
+    }
+    sig_summaries <- cbind(sig_summaries, fdr_summaries)
+    invisible(sig_summaries)
+}
+
 select_threshold <- function(scan.results, fdr_summaries){
     for(ph in 1:length(scan.results)){
         finite.thresh <- fdr_summaries[ph,which(is.finite(fdr_summaries[ph,]))]
         peak.tables <- lapply()
     }
-
 }
 
 allele_coef <- function(map.geno, map.pheno, map.k, addcovar = NULL,
@@ -1439,15 +1479,24 @@ plot_coef_scans <- function(coef.results, map.geno, map.pheno, fdr_results = NUL
 ```
 
 ```{r map_cds, warning = FALSE}
+
 cds.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K, 
     addcovar = covar, exclude.zeros = exclude.zeros, 
     results.file = file.path(results.dir, "scan1_results_cds.RDS"))
 
 if(run_permutations){
+    #perm_strata <- names(expanded.idx)
+    #names(perm_strata) <- rownames(mapping.pheno)
+    #cds.perm <- scan1perm(expanded.genoprobs, mapping.pheno, kinship = exp.K, 
+    #    addcovar = covar, perm_strata = perm_strata, n_perm = nperm, cores = detectCores()-1)
+
+    #cds.perm <- scan1perm(expanded.genoprobs, mapping.pheno, kinship = exp.K, 
+    #    addcovar = covar, n_perm = nperm, cores = detectCores()-1)
+
     cds.perm <- perm_scans(expanded.genoprobs, mapping.pheno, exp.K,
         cds.scans, addcovar = covar, groups = names(expanded.idx), 
         exclude.zeros = exclude.zeros, nperm = nperm, 
-        results.file = file.path(results.dir, "scan1perm_results_cds.RDS"))
+        results.file = file.path(results.dir, "scan1perm_results_cds_perm_scans.RDS"))
 }
 ```
 
@@ -1457,8 +1506,10 @@ if(run_permutations){
 ```{r plot_cds_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
 #plot the scans, and FDR results
 if(run_permutations){
-    fdr_summaries_cds <- plot_fdr_fun(cds.scans, cds.perm, 
-        tab.level = "####")
+    #pdf("~/Desktop/test.pdf")
+    fdr_summaries_cds <- plot_fdr_fun(cds.scans, cds.perm, tab.level = "####")
+    #sig_summaries_cds <- plot_pval_fun(scan.results = cds.scans, perm.results = cds.perm, tab.level = "####")
+    #dev.off()
 }else{
     for(i in 1:length(cds.scans)){
         cat("####", names(cds.scans)[i], "\n")
@@ -1716,7 +1767,7 @@ if(run_permutations){
     incidence.overall.perm <- perm_scans(map.geno = strain.genoprobs, map.pheno = overall.inc, 
         map.k = strain.K, scan1.results = inc.scan.overall, groups = NULL, exclude.zeros = FALSE, 
         nperm = nperm,
-        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall.RDS")))   
+        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall1.RDS")))   
 }
 ```
 
@@ -1729,8 +1780,8 @@ The following plots show the LOD traces for each incidence trait.
 ```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
-    fdr_summaries_incidence_overall <- plot_fdr_fun(inc.scan.overall, 
-    incidence.overall.perm, tab.level = "####")
+    fdr_summaries_incidence_overall <- plot_fdr_fun(scan.results = inc.scan.overall, 
+        perm.results = incidence.overall.perm, tab.level = "####")
 }else{    
     ymax <- max(sapply(inc.scan.overall, function(x) max(x[,1])))*1.05
     for(i in 1:length(inc.scan.overall)){
@@ -1741,7 +1792,7 @@ if(run_permutations){
     }
 }
 
-#dev.off()
+# 
 ```
 
 
