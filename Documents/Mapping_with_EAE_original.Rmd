@@ -663,7 +663,7 @@ if(genotypes == "sequenced"){
     if(!file.exists(map.file)){
         file <- paste0("https://raw.githubusercontent.com/rqtl/", "qtl2data/master/CC/cc.zip")
         cc <- read_cross2(file)
-        map <- map
+        map <- cc$pmap
         saveRDS(map, map.file)
         
         cc.official <- rownames(cc$geno[[1]])
@@ -1546,7 +1546,6 @@ if(run_permutations){
         exclude.zeros = exclude.zeros, nperm = nperm, 
         results.file = file.path(results.dir, "scan1perm_results_cds.RDS"))
 }
-stop()
 ```
 
 
