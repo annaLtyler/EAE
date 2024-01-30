@@ -635,9 +635,9 @@ mega muga marker map from the Jackson Laboratory
 [resource for CC/DO mice](https://www.jax.org/research-and-faculty/genetic-diversity-initiative/tools-data/diversity-outbred-reference-data)
 
 ```{r MRCA_genotypes, warning = FALSE}
+cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
 
 if(genotypes == "MRCA"){
-    cc.geno <- readRDS(here("Data", "MRCA10_modelprobs_trim.rds"))
     marker.info.file <- here("Data", "mouse", "mm_uwisc_v1.csv")
     marker.info <- read.csv(marker.info.file)
 
