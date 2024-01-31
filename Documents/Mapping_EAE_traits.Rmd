@@ -1292,8 +1292,8 @@ plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
     rownames(fdr_summaries) <- names(scan.results)
     for(ph in 1:length(scan.results)){
         cat(tab.level, names(scan.results)[ph], "\n")
-        summary_thresholds = fdr_summarize(perm.results[[ph]], fdr_cl = 0.95, 
-            geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
+        summary_thresholds = fdr_summarize(null_stats = perm.results[[ph]], 
+            fdr_cl = 0.95, geno_sig = alpha, fdr_thresh = c(0.1, 0.2, 0.4), 
             plot = FALSE, quartz = FALSE)
 
         finite.thresh <- which(is.finite(summary_thresholds))
@@ -1764,10 +1764,13 @@ inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K,
     results.file = file.path(results.dir, "scan1_results_overall_incidence_test.RDS"))
 
 if(run_permutations){    
-    incidence.overall.perm <- perm_scans(map.geno = strain.genoprobs, map.pheno = overall.inc, 
-        map.k = strain.K, scan1.results = inc.scan.overall, groups = NULL, exclude.zeros = FALSE, 
-        nperm = nperm,
-        results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall1.RDS")))   
+    #incidence.overall.perm <- perm_scans(map.geno = strain.genoprobs, map.pheno = overall.inc, 
+    #    map.k = strain.K, scan1.results = inc.scan.overall, groups = NULL, exclude.zeros = FALSE, 
+    #    nperm = nperm,
+    #    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall10.RDS")))   
+
+    incidence.perm <- scan1perm(strain.genoprobs, overall.inc, kinship = strain.K, n_perm = nperm)   
+    perm.summ <- summary(incidence.perm, alpha = c(0.05, 0.1, 0.2))
 }
 ```
 
@@ -1780,8 +1783,13 @@ The following plots show the LOD traces for each incidence trait.
 ```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
 if(run_permutations){
-    fdr_summaries_incidence_overall <- plot_fdr_fun(scan.results = inc.scan.overall, 
-        perm.results = incidence.overall.perm, tab.level = "####")
+    #fdr_summaries_incidence_overall <- plot_fdr_fun(scan.results = inc.scan.overall, 
+    #    perm.results = incidence.overall.perm, tab.level = "####")
+    for(ph in 1:length(inc.scan.overall)){
+        ylim <- c(0, max(c(max(inc.scan.overall[[ph]]), max(perm.summ[,ph]))))
+        plot(inc.scan.overall[[ph]], map = map, ylim = ylim)
+        abline(h = perm.summ[,ph])
+    }
 }else{    
     ymax <- max(sapply(inc.scan.overall, function(x) max(x[,1])))*1.05
     for(i in 1:length(inc.scan.overall)){
@@ -1791,8 +1799,7 @@ if(run_permutations){
         cat("\n\n")
     }
 }
-
-# 
+#dev.off() 
 ```
 
 

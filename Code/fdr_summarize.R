@@ -6,7 +6,7 @@ fdr_summarize = function(null_stats, fdr_cl = 0.95, fdr_thresh = c(0.05, 0.1, 0.
   fdr_ci_lo = exp(log(null_stats$fdr_hat) + qnorm(alpha / 2) * sqrt(null_stats$var_fdr))
   fdr_ci_hi = sapply(exp(log(null_stats$fdr_hat) - qnorm(alpha / 2) * sqrt(null_stats$var_fdr)), function(x){min(x, 1, na.rm = TRUE)})
   
-  sl = p2lod(quantile(null_stats$min_p+1e-16, sort(geno_sig)), null_stats$k, null_stats$nind)
+  sl = p2lod(quantile(null_stats$min_p, sort(geno_sig)), null_stats$k, null_stats$nind)
   names(sl) = paste("Genome-wide sig.", names(sl))
   
   x_vals = p2lod(null_stats$breaks[2:length(null_stats$breaks)], null_stats$k, null_stats$nind)

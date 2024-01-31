@@ -698,7 +698,6 @@ if(genotypes == "sequenced"){
         K <- readRDS(k.file)
     }
 }
-
 ```
 
 ```{r eval = FALSE}
@@ -1269,7 +1268,7 @@ rownames(mapping.covar) <- 1:nrow(mapping.covar)
 The heritability of CDS is shown below.
 
 ```{r herit, fig.width = 5, fig.height = 5}
-overall.k.file <- here("Data", "kinship_overall_nonames.RDS")
+overall.k.file <- here("Data", "kinship_overall.RDS")
 if(!file.exists(overall.k.file) || overwrite_previous){
     overall.K <- calc_kinship(expanded.genoprobs, "overall")
     saveRDS(overall.K, overall.k.file)
