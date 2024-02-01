@@ -1768,9 +1768,16 @@ if(run_permutations){
     #    map.k = strain.K, scan1.results = inc.scan.overall, groups = NULL, exclude.zeros = FALSE, 
     #    nperm = nperm,
     #    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall10.RDS")))   
+    
+    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall10.RDS"))
 
-    incidence.perm <- scan1perm(strain.genoprobs, overall.inc, kinship = strain.K, n_perm = nperm)   
-    perm.summ <- summary(incidence.perm, alpha = c(0.05, 0.1, 0.2))
+    if(!file.exists(results.file)){
+        incidence.perm <- scan1perm(strain.genoprobs, overall.inc, kinship = strain.K, n_perm = nperm)   
+        perm.summ <- summary(incidence.perm, alpha = c(0.05, 0.1, 0.2))
+        saveRDS(incidence.perm, results.file)
+    }else{
+        incidence.perm <- readRDS(results.file)
+    }
 }
 ```
 
@@ -1782,13 +1789,16 @@ The following plots show the LOD traces for each incidence trait.
 
 ```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
+
 if(run_permutations){
     #fdr_summaries_incidence_overall <- plot_fdr_fun(scan.results = inc.scan.overall, 
     #    perm.results = incidence.overall.perm, tab.level = "####")
     for(ph in 1:length(inc.scan.overall)){
+        cat("####", names(inc.scan.overall)[ph], "\n")
         ylim <- c(0, max(c(max(inc.scan.overall[[ph]]), max(perm.summ[,ph]))))
         plot(inc.scan.overall[[ph]], map = map, ylim = ylim)
         abline(h = perm.summ[,ph])
+        cat("\n\n")
     }
 }else{    
     ymax <- max(sapply(inc.scan.overall, function(x) max(x[,1])))*1.05
