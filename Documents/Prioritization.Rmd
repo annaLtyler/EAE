@@ -34,8 +34,8 @@ lookup.genes <- as.logical(args[2]) #whether to do pubmed query at end
 num.ms.genes <- 500
 
 if(is.null(tissue.type) || is.na(tissue.type)){
-    tissue.type = "central nervous system"; lookup.genes = FALSE
-    #tissue.type = "hemolymphoid system"; lookup.genes = FALSE
+    #tissue.type = "central nervous system"; lookup.genes = FALSE
+    tissue.type = "hemolymphoid system"; lookup.genes = FALSE
     #tissue.type = "spleen"; lookup.genes = FALSE
 }
 
@@ -46,7 +46,8 @@ if(is.null(tissue.type) || is.na(tissue.type)){
 #functions are written
 project.name = "QTL_Prioritization"
 
-results.dir <- here("Results", "Prioritization", paste0(gsub(" ", "_", tissue.type, "_network")))
+tissue.dir <- paste0(gsub(" ", "_", tissue.type, "_network"))
+results.dir <- here("Results", "Prioritization", tissue.dir)
 
 if(!file.exists(results.dir)){dir.create(results.dir, recursive = TRUE)}
 ```
@@ -62,7 +63,7 @@ for(i in 1:length(all.fun)){source(all.fun[i])}
 ```{r load_libraries, warning = FALSE, error = FALSE, message = FALSE, echo = FALSE}
 needed.libraries <- c("Matrix", "knitr", "here", "igraph", "DescTools", "pheatmap", 
 "e1071", "parallel", "doParallel", "gprofiler2", "clusterProfiler", "DT", "easyPubMed",
-"plotly", "qtl2", "cluster") 
+"plotly", "qtl2", "cluster", "stringr") 
 load_libraries(needed.libraries)
 n.cores <- detectCores() - 1
 ```
@@ -108,6 +109,20 @@ par(mar = c(4,6,4,4))
 boxplot(neg.log.gene[gene.order], las = 2, horizontal = TRUE, cex.names = 0.5)
 
 top.genes <- names(neg.log.gene)[gene.order[1:num.ms.genes]]
+
+#write out a table of the selected genes
+selected.reported.idx <- lapply(names(neg.log.gene)[gene.order[1:num.ms.genes]], 
+    function(x) grep(x, reported.gene, ignore.case = TRUE))
+
+selected.mapped.idx <- lapply(names(neg.log.gene)[gene.order[1:num.ms.genes]], 
+    function(x) grep(x, mapped.gene, ignore.case = TRUE))
+
+combined.idx <- unique(unlist(lapply(1:length(selected.reported.idx),
+    function(x) unique(c(selected.reported.idx[[x]], selected.mapped.idx[[x]])))))
+
+selected.gene.table <- gwas[combined.idx,]
+write.table(selected.gene.table, here("Results", "Prioritization", "general", "Selected_GWAS_Genes.txt"),
+    sep = "\t", quote = FALSE, row.names = FALSE)
 ```
 
 The top genes are enriched for the following processes.
@@ -123,10 +138,13 @@ and their Entrez IDs. Not all genes will have mouse orthologs
 ```{r convert}
 mus.hum <- read.delim(here("Data", "mouse", "human.mouse.orthologs.txt"))
 gene.idx <- match(top.genes, mus.hum[,"Human.Gene.Name"])
+gene.idx <- gene.idx[which(!is.na(gene.idx))]
 mus.entrez <- mus.hum[gene.idx,"Mouse.Ortholog.Entrez"]
 mus.entrez <- mus.entrez[which(!is.na(mus.entrez))]
 
 input.table <- mus.hum[gene.idx,]
+write.table(input.table, here("Results", "Prioritization", "general", "Mouse_Orthologs_of_GWAS.txt"),
+    sep = "\t", quote = FALSE, row.names = FALSE)
 ```
 
 ## FNTM
@@ -187,11 +205,17 @@ genes_in_region <- function(chr, pos.min, pos.max){
     return(region.table)
 }
 
-qtl_candidate_table <- function(scan1_results, chr, lodthresh, prob = 0.95, Mb.buffer = 0){
+#specify either lodthresh and prob, or ci_min and ci_max
+qtl_candidate_table <- function(scan1_results, chr, lodthresh = NULL, prob = NULL, 
+    Mb.buffer = 0, ci_min = NULL, ci_max = NULL){
 
-    peak.table <- find_peaks(scan1_results, map = map, threshold = lodthresh, prob = prob)
-    chr.idx <- which(peak.table[,"chr"] == chr)
-    lod.int <- peak.table[chr.idx,c("ci_lo", "ci_hi")]
+    if(!is.null(lodthresh)){
+        peak.table <- find_peaks(scan1_results, map = map, threshold = lodthresh, prob = prob)
+        chr.idx <- which(peak.table[,"chr"] == chr)
+        lod.int <- peak.table[chr.idx,c("ci_lo", "ci_hi")]
+    }else{
+        lod.int <- c(ci_min, ci_max)
+    }
     candidate.table <- genes_in_region(chr, (as.numeric(lod.int[1])-Mb.buffer)*1e6, (as.numeric(lod.int[2])+Mb.buffer)*1e6)
 
     result <- list("candidate_table" = candidate.table, "interval" = lod.int)
@@ -207,18 +231,18 @@ qtl.results <- vector(mode = "list", length = nrow(test.qtl))
 names(qtl.results) <- test.qtl[,1]
 
 for(i in 1:nrow(test.qtl)){
-    scan1.result <- readRDS(here("Results", "Zeros_included_covar-batch_rank-norm", test.qtl[i,"results_file"]))
+    scan1.result <- readRDS(here("Results", "Zeros_included_covar-batch_rank-norm_sequenced", test.qtl[i,"results_file"]))
     trait.idx <- which(names(scan1.result) == test.qtl[i,"qtl_name"])
     qtl_table <- qtl_candidate_table(scan1.result[[trait.idx]], 
-        chr = test.qtl[i,"Chr"], lodthresh = test.qtl[i,"lodthresh"], prob = test.qtl[i,"prob"])
+        chr = test.qtl[i,"Chr"], ci_min = test.qtl[i,"ci_min"], ci_max = test.qtl[i,"ci_max"])
     qtl.results[[i]] <- qtl_table
 }
 
 all_candidates <- Reduce("rbind", lapply(qtl.results, function(x) x$candidate_table))
-write.table(all_candidates, here("Results", "Prioritization", "qtl_candidates.csv"), 
+write.table(all_candidates, here("Results", "Prioritization", "general", "qtl_candidates.csv"), 
     sep = ",", quote = FALSE, row.names = FALSE)
 all_lod_int <- lapply(qtl.results, function(x) x$interval)
-names(all_lod_int) = c("14", "4")
+names(all_lod_int) = apply(test.qtl[,c(1,3)], 1, function(x) paste0(x[1], "_Chr", str_trim(x[2])))
 
 overlapping.genes <- intersect(all_candidates[,"entrezgene_id"], mus.entrez)
 ```
@@ -249,6 +273,14 @@ that are not connected to any other positive-labeled genes.
 
 ```{r pick_genes, echo = FALSE}
 tissue.adj <- tissue.adj.mat(tissue.net, training.set, inc.all.genes = FALSE)
+
+#write out final training set
+training.idx <- match(rownames(tissue.adj), mus.hum[,"Mouse.Ortholog.Entrez"])
+training.table <- mus.hum[training.idx,]
+write.table(training.table, here("Results", "Prioritization", "general", 
+    paste0("Training_Set_Genes_", tissue.dir, ".txt")),
+    sep = "\t", quote = FALSE, row.names = FALSE)
+stop()
 ```
 
 After identifying all Entrezgene IDs and building the positive-labeled network,
@@ -367,13 +399,14 @@ input training set of genes according to the `r tissue.type`
 network.
 
 ```{r cl_enrich, fig.width = 7, fig.height = 7}
-
 u_cl <- unique(cl.mem)
 cl.id <- lapply(u_cl, function(x) names(cl.mem)[which(cl.mem == x)])
 cl.enrich <- lapply(cl.id, function(x) gost(x, organism = "mmusculus", 
     sources = c("GO", "KEGG", "REACTOME"), numeric_ns = "ENTREZGENE_ACC"))
 names(cl.enrich) <- paste0("Cluster", 1:length(cl.enrich))
+#pdf("~/Desktop/EAE_enrich.pdf", width = 7, height = 11)
 plot.enrichment.group(cl.enrich, sort.by = "p_value", max.term.size = 3000, n.terms = 20)
+#dev.off()
 ```
 
 ### Rank Genes in Each QTL
@@ -397,7 +430,7 @@ result.table <- cbind(all_candidates[match(common.genes, all_candidates[,"extern
 colnames(result.table)[ncol(result.table)] <- "neg.log.fpr"
 ```
 
-## Gene Scores by Position
+## Gene Scores by Position {.tabset .tabset-fade .tabset-pills} 
 
 The following plots show the genes plotted in their genomic
 position on the x axis and their -log(FPR) on the y axis.
@@ -406,51 +439,92 @@ model is that it is related to the input genes. Vertical
 gray dashed lines show the boundaries of the QTL. The
 horizontal lines correspond to an FPR of 0.05 and 0.1.
 
+Genes printed in red are also GWAS hits. (They were not
+included in the training set.)
 
-```{r get_region}
+The panel just above the x axis labels is for genes that
+weren't ranked because they were not connected to the 
+training graph. Genes printed in red are GWAS hits.
 
-u_chr <- unique(result.table[,"chromosome_name"])
-
-for(ch in 1:length(u_chr)){
-    chr.idx <- which(result.table[,"chromosome_name"] == u_chr[ch])
-    gene.pos <- result.table[chr.idx,"start_position"]/1e6
-    pos.region <- max(gene.pos) - min(gene.pos)
-    xmin <- min(gene.pos)-(pos.region*0.05)
-    xmax <- max(gene.pos)+(pos.region*0.05)
-    yvals <- result.table[chr.idx,"neg.log.fpr"]
+```{r get_region, fig.width = 5, fig.height = 5, results = "asis"}
+#pdf("~/Desktop/EAE_candidates.pdf")
+for(ch in 1:length(qtl.results)){
+    #quartz(width = 5, height = 5)
+    cat("###", names(all_lod_int)[ch], "\n")
+    
+    #find genes in region in the result table
+    region.chr <- qtl.results[[ch]]$candidate_table[1,"chromosome_name"]
+    interval.pos <- qtl.results[[ch]]$interval
+    chr.idx <- which(result.table[,"chromosome_name"] == region.chr)
+    above.min <- which(result.table[,"start_position"] >= interval.pos[1]*1e6)
+    below.max <- which(result.table[,"start_position"] <= interval.pos[2]*1e6)
+    gene.idx <- Reduce("intersect", list(chr.idx, above.min, below.max))
+    
+    #get their positions
+    gene.pos <- result.table[gene.idx,"start_position"]
+    pos.region <- max(interval.pos) - min(interval.pos)
+    
+    #expand plot region by a fraction of the QTL interval
+    xmin <- min(interval.pos)-(pos.region*0.25) 
+    xmax <- max(interval.pos)+(pos.region*0.25)
+    yvals <- result.table[gene.idx,"neg.log.fpr"]
     ymax <- max(yvals)*1.05
 
     plot.col = rep("black", length(gene.pos))
-    has.gwas <- which(result.table[chr.idx,"external_gene_name"] %in% overlapping.names)
+    has.gwas <- which(result.table[gene.idx,"external_gene_name"] %in% overlapping.names)
     if(length(has.gwas) > 0){
         plot.col[has.gwas] <- "red"
+        #cbind(plot.col, result.table[gene.idx,"external_gene_name"])
     }
 
+    layout(matrix(c(1,2), nrow = 2), heights = c(1, 0.2))
+    par(mar = c(0,4,4,2)+0.1)
     plot(gene.pos, yvals, ylim = c(0, ymax),
-        xlab = paste("Chr", u_chr[ch], "Position (Mb)"), ylab = "-log10(FPR)",
-        main = paste("Chr", u_chr[ch], "QTL"), pch = 16, xlim = c(xmin, xmax))
-    text(result.table[chr.idx,"start_position"]/1e6, result.table[chr.idx,"neg.log.fpr"],
-        labels = result.table[chr.idx, "external_gene_name"], pos = 3)
-    int.idx <- which(names(all_lod_int) == u_chr[ch])
-    abline(v = all_lod_int[[int.idx]], lty = 2, col = "gray")
-    abline(h = -log10(c(0.05, 0.1)), lty = c(1,2))
-
+        xlab = "", ylab = "-log10(FPR)",
+        main = paste(strsplit(names(all_lod_int)[ch], "_")[[1]], collapse = " "), 
+        pch = 16, xlim = c(xmin, xmax), axes = FALSE)
+    text(result.table[gene.idx,"start_position"]/1e6, result.table[gene.idx,"neg.log.fpr"],
+        labels = result.table[gene.idx, "external_gene_name"], pos = 3, col = plot.col)
+    segments(x0 = interval.pos, y0 = 0, y1 = ymax, lty = 2, col = "gray")
+    segments(x0 = xmin, x1 = xmax, y0 = -log10(0.05))
+    axis(2)
+    
     #plot unranked genes along the x axis. Mark any that 
     #are GWAS hits.
-    ranked.genes <- result.table[chr.idx, "external_gene_name"]
-    all.region.genes <- genes_in_region(chr = u_chr[ch], 
-        min(result.table[chr.idx,"start_position"]), 
-        max(result.table[chr.idx,"start_position"]))
+    ranked.genes <- result.table[gene.idx, "external_gene_name"]
+    all.region.genes <- genes_in_region(chr = region.chr, 
+        interval.pos[1]*1e6, interval.pos[2]*1e6)
     unranked.genes <- setdiff(all.region.genes[,"external_gene_name"], ranked.genes)
-    is.gwas <- match(unranked.genes)
-
-
-
+    
+    #make separate plot for unranked genes
+    par(mar = c(2,4,0,2)+0.1)
+    plot.new()
+    plot.window(xlim = c(xmin, xmax), ylim = c(0,1))
+    segments(x0 = xmin, x1 = xmax, y0 = 1)
+    usr <- par("usr")
+    #par(xpd = NA)
+    #text(x = xmin-(pos.region*0.1), y = 0.5, labels = "Unranked", adj = 0.5)
+    #do.call("clip", as.list(usr))
+        
+    if(length(unranked.genes) > 0){
+        unranked.idx <- match(unranked.genes, gene.info[,"external_gene_name"])
+        unranked.pos <- gene.info[unranked.idx,"start_position"]/1e6
+        gene.col <- rep("black", length(unranked.genes))
+        has.gwas <- which(unranked.genes %in% overlapping.names)
+        if(length(has.gwas) > 0){
+            gene.col[has.gwas] <- "red"
+        }
+        text(unranked.pos, rep(0.5, length(unranked.genes)), labels = unranked.genes, col = gene.col)
+    }
+    axis(1)
+    mtext(paste("Chr", region.chr, "Position (Mb)"), side = 1, line = 2.5)
+    cat("\n\n")
 }
+#dev.off()
 ```
 
 
-## Ranked Genes by QTL
+## Ranked Genes by QTL {.tabset .tabset-fade .tabset-pills} 
 
 The following plots show only the scores of each gene
 independent of position. They are sorted from highest
@@ -461,27 +535,41 @@ The histograms show the distribution of functional scores
 across the mouse genome and where the top-ranked gene in 
 the locus fell in that distribution.
 
-```{r, fig.width = 8, fig.height = 4}
-for(ch in 1:length(u_chr)){
+```{r, fig.width = 8, fig.height = 4, results = "asis"}
+
+#pdf("~/Desktop/Ranked_Gene_Bars.pdf", width = 8, height = 7)
+for(ch in 1:length(qtl.results)){
+    cat("###", names(all_lod_int)[ch], "\n")
     par(mfrow = c(1,2))
-    chr.idx <- which(result.table[,"chromosome_name"] == u_chr[ch])
-    result.fpr <- result.table[chr.idx,"neg.log.fpr"]
-    result.order <- order(result.fpr, decreasing = FALSE)
+    
+    region.chr <- qtl.results[[ch]]$candidate_table[1,"chromosome_name"]
+    interval.pos <- qtl.results[[ch]]$interval
+    chr.idx <- which(result.table[,"chromosome_name"] == region.chr)
+    above.min <- which(result.table[,"start_position"] >= interval.pos[1]*1e6)
+    below.max <- which(result.table[,"start_position"] <= interval.pos[2]*1e6)
+    gene.idx <- Reduce("intersect", list(chr.idx, above.min, below.max))
+    gene.pos <- result.table[gene.idx,"start_position"]
+
+    result.fpr <- result.table[gene.idx,"neg.log.fpr"]
+    max.n <- 10 #only show maximum of 10 genes
+    take.top <- min(length(result.fpr), max.n)
+    result.order <- tail(order(result.fpr, decreasing = FALSE), max.n)
     par(mar = c(4,8,4,2))
     barplot(result.fpr[result.order], las = 2, 
-        main = paste("Chr", u_chr[ch], "QTL"),
-        ylab = "", names = result.table[chr.idx[result.order],"external_gene_name"],
+        main = paste(strsplit(names(all_lod_int)[ch], "_")[[1]], collapse = " "),
+        ylab = "", names = result.table[gene.idx[result.order],"external_gene_name"],
         horiz = TRUE)
-    abline(v = -log10(c(0.05, 0.1)), lty = c(1,2))
-    mtext("-log10(FPR)", side = 2, line = 4.5)
+    abline(v = -log10(0.05))
+    mtext("-log10(FPR)", side = 1, line = 2.5)
 
     par(mar = c(4,4,4,4))
     hist(fun.score, xlab = "Functional Score", main = "All Functional Scores")
-    abline(v = max(result.table[chr.idx,"neg.log.fpr"]), col = "red")
+    abline(v = max(result.table[gene.idx,"neg.log.fpr"]), col = "red")
     legend("topright", lty = 1, col = "red",
-        legend = tail(result.table[chr.idx[result.order],"external_gene_name"], 1))
+        legend = tail(result.table[gene.idx[result.order],"external_gene_name"], 1))
+    cat("\n\n")
 }
-
+#dev.off()
 ```
 
 ```{r pubmed, results = "asis"}
@@ -505,6 +593,5 @@ if(lookup.genes){
             paste0("PubMed_Query_", all_genes[with.papers[i]], ".txt")), 
             sep = "\t", quote = FALSE, row.names = FALSE, col.names = FALSE)
     }
-
 }
 ```

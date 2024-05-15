@@ -1286,7 +1286,7 @@ perm_scans <- function(map.geno, map.pheno, map.k, scan1.results,
 #with traits in rows and the different significance thresholds for
 #LOD scores in columns corresponding to both standard and FDR-adjusted 
 #LOD scores.
-plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
+plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###", maxy = NULL){
 
     fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = 5)
     rownames(fdr_summaries) <- names(scan.results)
@@ -1298,16 +1298,23 @@ plot_fdr_fun <- function(scan.results, perm.results, tab.level = "###"){
 
         finite.thresh <- which(is.finite(summary_thresholds))
 
-        maxy <- max(c(scan.results[[ph]][,1], 
-            summary_thresholds[finite.thresh], na.rm = TRUE))*1.1
-        par(mar = c(4, 4, 4, 8))
+        if(is.null(maxy)){
+            maxy <- max(c(scan.results[[ph]][,1], 
+                summary_thresholds[finite.thresh], na.rm = TRUE))*1.1
+        }
+        par(mar = c(4, 4, 4, 2))
         plot(scan.results[[ph]], map = map, main = names(scan.results)[ph], 
             ylim = c(0, maxy))
-        abline(h = summary_thresholds)
+        abline(h = summary_thresholds, lty = 1:length(summary_thresholds))
         plot.dim <- par("usr")
         par(xpd = TRUE)
-        text(x = plot.dim[2], y = summary_thresholds[finite.thresh], 
-            labels = names(summary_thresholds)[finite.thresh], cex = 0.5, adj = 0)
+        #text(x = plot.dim[2], y = summary_thresholds[finite.thresh], 
+        #    labels = names(summary_thresholds)[finite.thresh], cex = 0.5, adj = 0)
+        text(x = plot.dim[2]*1.01, y = summary_thresholds[finite.thresh], 
+            labels = alpha, cex = 0.5, adj = 0)
+
+        #text(x = plot.dim[1], y = summary_thresholds[finite.thresh],
+        #    labels = summary_thresholds[finite.thresh], cex = 0.7, adj = 1)
         par(xpd = FALSE)
         fdr_summaries[ph,] <- summary_thresholds
         cat("\n\n")
@@ -1454,7 +1461,7 @@ plot_coef_scans <- function(coef.results, map.geno, map.pheno, fdr_results = NUL
                 plot(chr.lod[[idx]], map = map, main = paste(trait, "Chr", chr), 
                     ylim = c(0, ymax*1.05))
                 if(!is.null(fdr_results)){
-                    abline(h = fdr_results[ph,line.idx])
+                    abline(h = fdr_results[ph,line.idx], lty = ph)
                 
                     plot.dim <- par("usr")
                     par(xpd = TRUE)
@@ -1507,7 +1514,8 @@ if(run_permutations){
 #plot the scans, and FDR results
 if(run_permutations){
     #pdf("~/Desktop/test.pdf")
-    fdr_summaries_cds <- plot_fdr_fun(cds.scans, cds.perm, tab.level = "####")
+    fdr_summaries_cds <- plot_fdr_fun(scan.results = cds.scans, perm.results = cds.perm, 
+        tab.level = "####", maxy = NULL)
     #sig_summaries_cds <- plot_pval_fun(scan.results = cds.scans, perm.results = cds.perm, tab.level = "####")
     #dev.off()
 }else{
@@ -1548,7 +1556,7 @@ plot_coefCC(global.coef, map = map, scan1_output = global.lod,
 
 
 plot_coefCC(global.coef, map = map, scan1_output = global.lod,
-    ylim = c(-2, 2), col = strain.colors, xlim = c(101, 119),
+    ylim = c(-2, 2), col = strain.colors, xlim = c(95, 125),
     main = "Global CDS Chr 14 QTL Window", top_panel_prop = 0.5)
 
 
@@ -1593,6 +1601,8 @@ for(ph in 1:length(cds.scans)){
     top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
     rownames(top.peaks) <- NULL
     print(kable(top.peaks))
+    cat("Thresholds:\n")
+    print(kable(fdr_summaries_cds[ph,,drop=FALSE]))
     cat("\n\n")
 }
 ```
@@ -1708,6 +1718,10 @@ for(i in 1:ncol(incidence$incidence_strain)){
     hist(incidence$incidence_strain[,i], main = colnames(incidence$incidence_strain)[i],
         xlab = "Incidence")
 }
+strain_K <- calc_kinship(strain.genoprobs, "overall")
+#test <- est_herit(incidence$incidence_strain, strain_K)
+#par(mar = c(4, 16, 4, 4))
+#barplot(as.numeric(test), names = colnames(incidence$incidence_strain), las = 2, horiz = TRUE)
 ```
 
 ### Overall Incidence Distributions - Normalized
@@ -1721,7 +1735,21 @@ for(i in 1:ncol(overall.inc)){
     hist(overall.inc[,i], main = colnames(overall.inc)[i],
         xlab = "Incidence")
 }
+#test <- est_herit(overall.inc, strain_K)
+#par(mar = c(4, 16, 4, 4))
+#barplot(as.numeric(test), names = colnames(overall.inc), las = 2, horiz = TRUE)
+#kin.decomp <- plot.decomp(strain_K)
+#kin.pc <- kin.decomp$u[,1,drop=FALSE]
+#rownames(kin.pc) <- rownames(strain_K)[kin.decomp$rows.used]
+#common.ind <- intersect(rownames(overall.inc), rownames(strain_K))
+#plot.with.model(overall.inc[common.ind,1], kin.pc[common.ind,1])
+#all.cor <- apply(overall.inc[common.ind,], 2, function(x) cor(x, kin.pc[common.ind,1]))
+#barplot(rbind(all.cor, test), las = 2, beside = TRUE)
+#abline(h = 0)
 ```
+
+### Allele effect heatmaps
+
 
 ### Incidence Distributions by Sex - Not Normalized
 
@@ -1738,6 +1766,11 @@ for(i in 1:ncol(pre.norm)){
         xlab = "Incidence", col = incidence.covar[,1]+3)
     legend("topright", col = c(0,1)+3, pch = 16, legend = c("F", "M"))
 }
+
+#test <- est_herit(incidence$incidence_female, strain_K)
+#par(mar = c(4, 16, 4, 4))
+#barplot(as.numeric(test), names = colnames(overall.inc), las = 2, horiz = TRUE)
+
 ```
 
 ### Incidence Distributions by Sex - Normalized
@@ -1749,6 +1782,7 @@ for(i in 1:ncol(pre.norm)){
         xlab = "Incidence", col = incidence.covar[,1]+3)
     legend("topright", col = c(0,1)+3, pch = 16, legend = c("F", "M"))
 }
+
 ```
 
 ```{r no_perm}
@@ -1761,7 +1795,7 @@ for(i in 1:ncol(pre.norm)){
 
 inc.scan.overall <- map_pheno(strain.genoprobs, overall.inc, strain.K, 
     exclude.zeros = FALSE, 
-    results.file = file.path(results.dir, "scan1_results_overall_incidence_test.RDS"))
+    results.file = file.path(results.dir, "scan1_results_overall_incidence.RDS"))
 
 if(run_permutations){    
     #incidence.overall.perm <- perm_scans(map.geno = strain.genoprobs, map.pheno = overall.inc, 
@@ -1769,15 +1803,15 @@ if(run_permutations){
     #    nperm = nperm,
     #    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall10.RDS")))   
     
-    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall10.RDS"))
+    results.file = file.path(results.dir, paste0("scan1perm_results_incidence_overall.RDS"))
 
     if(!file.exists(results.file)){
         incidence.perm <- scan1perm(strain.genoprobs, overall.inc, kinship = strain.K, n_perm = nperm)   
-        perm.summ <- summary(incidence.perm, alpha = c(0.05, 0.1, 0.2))
         saveRDS(incidence.perm, results.file)
     }else{
         incidence.perm <- readRDS(results.file)
     }
+    perm.summ <- summary(incidence.perm, alpha = alpha)
 }
 ```
 
@@ -1789,15 +1823,21 @@ The following plots show the LOD traces for each incidence trait.
 
 ```{r plot_inc_perm_overall, warning = FALSE, fig.height = 5, fig.width = 9, results = "asis"}
 #pdf("~/Desktop/test.pdf")
-
 if(run_permutations){
     #fdr_summaries_incidence_overall <- plot_fdr_fun(scan.results = inc.scan.overall, 
     #    perm.results = incidence.overall.perm, tab.level = "####")
     for(ph in 1:length(inc.scan.overall)){
         cat("####", names(inc.scan.overall)[ph], "\n")
-        ylim <- c(0, max(c(max(inc.scan.overall[[ph]]), max(perm.summ[,ph]))))
+        ylim <- c(0, max(c(max(inc.scan.overall[[ph]]), max(perm.summ[,ph])))*1.05)
+        #ylim <- c(0, 9)
         plot(inc.scan.overall[[ph]], map = map, ylim = ylim)
-        abline(h = perm.summ[,ph])
+        abline(h = perm.summ[,ph], lty = 1:length(alpha))
+        plot.dim <- par("usr")
+        par(xpd = TRUE)
+        text(x = plot.dim[2]*1.01, y = perm.summ[,ph], 
+            labels = rownames(perm.summ), cex = 0.5, adj = 0)
+        par(xpd = FALSE)
+
         cat("\n\n")
     }
 }else{    
@@ -1827,6 +1867,11 @@ for(ph in 1:length(inc.scan.overall)){
     top.peaks <- peak.table[lod.order[1:top.n],3:ncol(peak.table)]
     rownames(top.peaks) <- NULL
     print(kable(top.peaks))
+    cat("Thresholds:\n")
+    threshholds <- matrix(Inf, nrow = 1, ncol = ncol(fdr_summaries_cds))
+    colnames(threshholds) <- colnames(fdr_summaries_cds)
+    threshholds[1:length(alpha)] <- signif(perm.summ[,ph], 3)
+    print(kable(threshholds))
     cat("\n\n")
 }
 ```
@@ -1920,36 +1965,51 @@ to highest effect going from left to right
 #    xlab = "Classical Only LOD", ylab = "AR Only LOD")
 
 #look at individual large QTL to see if they look spurious
-plot_max_allele_effects <- function(trait.name, mapping.geno, mapping.pheno, 
-    mapping.K, map, scan.results, chr = NULL, round.digs = 2){
+#specify groups to average effects together, by strain, for 
+#example
+plot_max_allele_effects <- function(trait.name, plotting.geno, plotting.pheno, 
+    plotting.K, map, scan.results, chr = NULL, round.digs = 2, groups = NULL){
     
     scan.trait.idx <- which(names(scan.results) == trait.name)
-    pheno.trait.idx <- which(colnames(mapping.pheno) == trait.name)
+    pheno.trait.idx <- which(colnames(plotting.pheno) == trait.name)
 
     #if no chromosome is specified, take the largest overall LOD score
     if(is.null(chr)){
         max.marker <- names(which.max(scan.results[[scan.trait.idx]][,1]))
     }else{
-        chr.idx <- which(names(mapping.geno) == chr)
-        marker.chr <- dimnames(mapping.geno[[chr.idx]])[[3]]
+        chr.idx <- which(names(plotting.geno) == chr)
+        marker.chr <- dimnames(plotting.geno[[chr.idx]])[[3]]
         max.marker <- names(which.max(scan.results[[scan.trait.idx]][marker.chr,1]))
     }
 
     #test a random marker
     #max.marker <- sample(rownames(inc.scan.overall[[trait.idx]]), 1)
     marker.pos <- find_markerpos(map, max.marker)
-    marker.geno <- round(pull_genoprobpos(mapping.geno, marker = max.marker), 
+    marker.geno <- round(pull_genoprobpos(plotting.geno, marker = max.marker), 
         round.digs)
     chr.idx <- which(names(map) == marker.pos[,"chr"])
+    chr.K <- plotting.K[[chr.idx]]
 
-    common.strains <- intersect(rownames(mapping.pheno), rownames(marker.geno))
-    annot.df <- data.frame(mapping.pheno[common.strains,pheno.trait.idx,drop=FALSE])
+    if(!is.null(groups)){
+        u_groups <- unique(groups)
+        new.pheno <- t(sapply(u_groups, function(x) colMeans(plotting.pheno[which(groups == x),,drop=FALSE])))
+        plotting.pheno <- new.pheno
+        new.geno <- t(sapply(u_groups, function(x) colMeans(marker.geno[which(groups == x),,drop=FALSE])))
+        marker.geno <- new.geno
+        matched.idx <- match(u_groups, groups)
+        new.K <- chr.K[matched.idx, matched.idx]
+        rownames(new.K) <- colnames(new.K) <- u_groups
+        chr.K <- new.K
+    }
+
+    common.strains <- intersect(rownames(plotting.pheno), rownames(marker.geno))
+    annot.df <- data.frame(plotting.pheno[common.strains,pheno.trait.idx,drop=FALSE])
 
     trait.order <- order(annot.df[,1])
     ordered.names <- common.strains[trait.order]
 
-    model <- fit1(marker.geno, mapping.pheno[,pheno.trait.idx,drop=FALSE], 
-        kinship = mapping.K[[chr.idx]])
+    model <- fit1(marker.geno, plotting.pheno[,pheno.trait.idx,drop=FALSE], 
+        kinship = chr.K)
     marker.lod <- model$lod
     #barplot(model$coef)
 
@@ -1987,19 +2047,27 @@ Global_CDS_Allele_Effects.png in the results folder. The
 order is the same as shown in the boxplot.
 
 ```{r global_cds_allele_effects, fig.height = 10, fig.width = 5}
+
+strain.groups = sapply(strsplit(rownames(mapping.genoprobs[[1]])[expanded.idx], "/", 
+    fixed = TRUE), function(x) x[1])
+
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-par(mar = c(4,8,4,4))
-test <- plot_max_allele_effects("Global", mapping.geno = expanded.genoprobs, 
-    mapping.pheno = mapping.pheno, mapping.K = exp.K, map = map, 
-    scan.results = cds.scans)
+test <- plot_max_allele_effects("Global", plotting.geno = expanded.genoprobs, 
+    plotting.pheno = mapping.pheno, plotting.K = exp.K, map = map, 
+    scan.results = cds.scans, groups = strain.groups)
 
 png(file.path(results.dir, "Global_CDS_Allele_Effects.png"), height = 40, 
     width = 5, units = "in", res = 300)
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.07))
 par(mar = c(4,8,4,4))
-plot_max_allele_effects("Global", mapping.geno = expanded.genoprobs, 
-    mapping.pheno = mapping.pheno, mapping.K = exp.K, map = map, 
+plot_max_allele_effects("Global", plotting.geno = expanded.genoprobs, 
+    plotting.pheno = mapping.pheno, plotting.K = exp.K, map = map, 
     scan.results = cds.scans)
+
+plot_max_allele_effects("Global", plotting.geno = expanded.genoprobs, 
+    plotting.pheno = mapping.pheno, plotting.K = exp.K, map = map, 
+    scan.results = cds.scans)
+
 dev.off()
 ```
 
@@ -2008,8 +2076,8 @@ dev.off()
 ```{r eae_allele_effects_4, fig.height = 10, fig.width = 5}
 #png("~/Desktop/test.png", height = 10, width = 5, units = "in", res = 300)
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("EAE", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 #dev.off() 
 ```
@@ -2018,8 +2086,8 @@ test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs,
 
 ```{r eae_allele_effects_14, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("EAE", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall, chr = 14)
 ```
 
@@ -2028,8 +2096,8 @@ test <- plot_max_allele_effects("EAE", mapping.geno = strain.genoprobs,
 
 ```{r ar_allele_effects, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("AR.Major.Subtype", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("AR.Major.Subtype", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 ```
 
@@ -2037,8 +2105,8 @@ test <- plot_max_allele_effects("AR.Major.Subtype", mapping.geno = strain.genopr
 
 ```{r remitting_allele_effects, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Remitting.EAE", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("Remitting.EAE", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 ```
 
@@ -2047,8 +2115,8 @@ test <- plot_max_allele_effects("Remitting.EAE", mapping.geno = strain.genoprobs
 
 ```{r classical_allele_effects, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Subtype..Classical.only", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("Subtype..Classical.only", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 ```
 
@@ -2057,8 +2125,8 @@ test <- plot_max_allele_effects("Subtype..Classical.only", mapping.geno = strain
 
 ```{r relapsing_remitting_allele_effects_18, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Relapsing.Remitting", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("Relapsing.Remitting", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall)
 ```
 
@@ -2066,8 +2134,8 @@ test <- plot_max_allele_effects("Relapsing.Remitting", mapping.geno = strain.gen
 
 ```{r relapsing_remitting_allele_effects_5, fig.height = 10, fig.width = 5}
 layout(matrix(c(1,2), ncol = 1), heights = c(1, 0.5))
-test <- plot_max_allele_effects("Relapsing.Remitting", mapping.geno = strain.genoprobs, 
-    mapping.pheno = overall.inc, mapping.K = strain.K, map = map, 
+test <- plot_max_allele_effects("Relapsing.Remitting", plotting.geno = strain.genoprobs, 
+    plotting.pheno = overall.inc, plotting.K = strain.K, map = map, 
     scan.results = inc.scan.overall, chr = 5)
 ```
 
@@ -2094,7 +2162,7 @@ for(i in 1:length(rounded.geno)){
 
 ### Global CDS - Individual Chr 14
 
-```{r allele_effects_global_14}
+```{r allele_effects_global_14, fig.width = 8, fig.height = 8}
 chr <- 14
 trait <- "Global"
 
@@ -2107,7 +2175,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - EAE Chr 4
 
-```{r allele_effects_inc_eae_4}
+```{r allele_effects_inc_eae_4, fig.width = 8, fig.height = 8}
 chr <- 4
 trait <- "EAE"
 
@@ -2120,7 +2188,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - EAE Chr 14
 
-```{r allele_effects_inc_eae_14}
+```{r allele_effects_inc_eae_14, fig.width = 8, fig.height = 8}
 chr <- 14
 trait <- "EAE"
 
@@ -2133,7 +2201,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - AR Major Subtype Chr 9
 
-```{r allele_effects_inc_AR_9}
+```{r allele_effects_inc_AR_9, fig.width = 8, fig.height = 8}
 chr <- 9
 trait <- "AR.Major.Subtype"
 
@@ -2141,12 +2209,12 @@ lod.scan <- scan1(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
 coef.scan <- scan1coef(rounded.geno[,chr], overall.inc[,trait], strain.K[[chr]])
 plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
     ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
-    main = paste(trait, "Chr", chr))
+    main = paste(trait, "Chr", chr), xlim = c(0, 30))
 ```
 
 ### Incidence - Remitting Chr 6
 
-```{r allele_effects_inc_remitting_6}
+```{r allele_effects_inc_remitting_6, fig.width = 8, fig.height = 8}
 chr <- 6
 trait <- "Remitting.EAE"
 
@@ -2159,7 +2227,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - Classical Only Chr 5
 
-```{r allele_effects_inc_classical_5}
+```{r allele_effects_inc_classical_5, fig.width = 8, fig.height = 8}
 chr <- 5
 trait <- "Subtype..Classical.only"
 
@@ -2172,7 +2240,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - Relapsing Remitting Chr 18
 
-```{r allele_effects_inc_rr_18}
+```{r allele_effects_inc_rr_18, fig.width = 8, fig.height = 8}
 chr <- 18
 trait <- "Relapsing.Remitting"
 
@@ -2185,7 +2253,7 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
 
 ### Incidence - Relapsing Remitting Chr 5
 
-```{r allele_effects_inc_rr_5}
+```{r allele_effects_inc_rr_5, fig.width = 8, fig.height = 8}
 chr <- 5
 trait <- "Relapsing.Remitting"
 
