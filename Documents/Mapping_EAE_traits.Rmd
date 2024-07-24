@@ -1329,9 +1329,9 @@ plot_pval_fun <- function(scan.results, perm.results, tab.level = "###"){
 
     sig_summaries <- t(summary(perm.results, alpha = alpha))
     finite.thresh <- which(is.finite(sig_summaries))
-    fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = length(alpha))
-    rownames(fdr_summaries) <- names(scan.results)
-    colnames(fdr_summaries) <- paste0("FDR ", alpha*100, "%")
+    #fdr_summaries <- matrix(NA, nrow = length(scan.results), ncol = length(alpha))
+    #rownames(fdr_summaries) <- names(scan.results)
+    #colnames(fdr_summaries) <- paste0("FDR ", alpha*100, "%")
 
     for(ph in 1:length(scan.results)){
         cat(tab.level, names(scan.results)[ph], "\n")
@@ -1343,23 +1343,24 @@ plot_pval_fun <- function(scan.results, perm.results, tab.level = "###"){
         
         fdr.idx <- lapply(alpha, function(x) which(round(trait.fdr, 2) == x))
         fdr.thresh <- unlist(lapply(fdr.idx, function(x) if(length(x) > 0){scan.results[[ph]][x]}else{NA}))
-        fdr_summaries[ph,] <- fdr.thresh
+        #fdr_summaries[ph,] <- fdr.thresh
 
         maxy <- max(c(scan.results[[ph]][,1], 
-            sig_summaries[finite.thresh], na.rm = TRUE))*1.1
+            sig_summaries[ph,], na.rm = TRUE))*1.1
         par(mar = c(4, 4, 4, 8))
         plot(scan.results[[ph]], map = map, main = names(scan.results)[ph], 
             ylim = c(0, maxy))
-        abline(h = sig_summaries[ph,])
-        abline(h = fdr_summaries[ph,])
+        abline(h = sig_summaries[ph,], lty = c(1,2))
+        #abline(h = fdr_summaries[ph,])
         plot.dim <- par("usr")
         par(xpd = TRUE)
-        text(x = plot.dim[2], y = sig_summaries[ph,], 
-            labels = colnames(sig_summaries), cex = 0.5, adj = 0)
+        text(x = plot.dim[2]*1.005, y = sig_summaries[ph,], 
+            labels = colnames(sig_summaries), cex = 0.7, adj = 0)
         par(xpd = FALSE)
         cat("\n\n")
     }
-    sig_summaries <- cbind(sig_summaries, fdr_summaries)
+    #sig_summaries <- cbind(sig_summaries, fdr_summaries)
+    sig_summaries <- cbind(sig_summaries)
     invisible(sig_summaries)
 }
 
@@ -1491,6 +1492,8 @@ cds.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K,
     addcovar = covar, exclude.zeros = exclude.zeros, 
     results.file = file.path(results.dir, "scan1_results_cds.RDS"))
 
+
+
 if(run_permutations){
     #perm_strata <- names(expanded.idx)
     #names(perm_strata) <- rownames(mapping.pheno)
@@ -1508,9 +1511,168 @@ if(run_permutations){
 ```
 
 
+```{r by_sex}
+nperm = 100
+f.idx <- which(covar[,1] == 1)
+m.idx <- which(covar[,1] == 2)
+
+strain.strata <- names(expanded.idx)
+names(strain.strata) <- rownames(mapping.pheno)
+
+cds.f.scans <- map_pheno(expanded.genoprobs, mapping.pheno[f.idx,], exp.K, 
+    exclude.zeros = exclude.zeros, 
+    results.file = file.path(results.dir, "scan1_results_cds_f.RDS"))
+
+cds.f.perm.results.file <- file.path(results.dir, "scan1perm_results_cds_f.RDS")
+if(!file.exists(cds.f.perm.results.file)){
+    cds.f.perm <- scan1perm(genoprobs = expanded.genoprobs, 
+        pheno = mapping.pheno[f.idx,,drop=FALSE], addcovar = covar, 
+        n_perm = nperm, cores = 4)
+    saveRDS(cds.f.perm, cds.f.perm.results.file)
+}else{
+    cds.f.perm <- readRDS(cds.f.perm.results.file)
+}
+
+cds.m.scans <- map_pheno(expanded.genoprobs, mapping.pheno[m.idx,], exp.K, 
+    exclude.zeros = exclude.zeros, 
+    results.file = file.path(results.dir, "scan1_results_cds_m.RDS"))
+
+cds.m.perm.results.file <- file.path(results.dir, "scan1perm_results_cds_m.RDS")
+if(!file.exists(cds.m.perm.results.file)){
+    cds.m.perm <- scan1perm(genoprobs = expanded.genoprobs, 
+        pheno = mapping.pheno[m.idx,,drop=FALSE], addcovar = covar, 
+        n_perm = nperm, cores = 4)
+    saveRDS(cds.m.perm, cds.m.perm.results.file)
+}else{
+    cds.m.perm <- readRDS(cds.m.perm.results.file)
+}
+
+cds.add.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K, 
+    exclude.zeros = exclude.zeros, addcovar = covar,
+    results.file = file.path(results.dir, "scan1_results_cds_add.RDS"))
+
+cds.add.perm.results.file <- file.path(results.dir, "scan1perm_results_cds_add.RDS")
+if(!file.exists(cds.add.perm.results.file)){
+    cds.add.perm <- scan1perm(genoprobs = expanded.genoprobs, 
+        pheno = mapping.pheno, addcovar = covar,
+        n_perm = nperm, cores = 4)
+    saveRDS(cds.add.perm, cds.add.perm.results.file)
+}else{
+    cds.add.perm <- readRDS(cds.add.perm.results.file)
+}
+
+cds.int.scans <- map_pheno(expanded.genoprobs, mapping.pheno, exp.K, 
+    exclude.zeros = exclude.zeros, addcovar = covar, intcovar = covar,
+    results.file = file.path(results.dir, "scan1_results_cds_int.RDS"))
+
+cds.int.perm.results.file <- file.path(results.dir, "scan1perm_results_cds_int.RDS")
+if(!file.exists(cds.int.perm.results.file)){
+    cds.int.perm <- scan1perm(genoprobs = expanded.genoprobs, 
+        pheno = mapping.pheno, addcovar = covar, intcovar = covar,
+        n_perm = nperm, cores = 4)
+    saveRDS(cds.int.perm, cds.int.perm.results.file)
+}else{
+    cds.int.perm <- readRDS(cds.int.perm.results.file)
+}
+
+```
+
+### CDS QTL for Females {.tabset .tabset-fade .tabset-pills}
+
+```{r f_cds, fig.width = 10, fig.height = 4, results = "asis"}
+
+#pdf("~/Desktop/CDS_Female.pdf", width = 10, height = 12);par(mfrow = c(3,1))
+plot_pval_fun(scan.results = cds.f.scans, perm.results = cds.f.perm, tab.level = "####")
+#dev.off()
+```
+
+
+### CDS QTL for Males {.tabset .tabset-fade .tabset-pills}
+
+```{r m_cds, fig.width = 10, fig.height = 4, results = "asis"}
+#pdf("~/Desktop/CDS_Male.pdf", width = 10, height = 12);par(mfrow = c(3,1))
+plot_pval_fun(scan.results = cds.m.scans, perm.results = cds.m.perm, tab.level = "####")
+#dev.off()
+```
+
+
+### CDS QTL for Both Sexes Overlayed {.tabset .tabset-fade .tabset-pills}
+
+```{r cds_overlayed, fig.width = 10, fig.height = 10, results = "asis"}
+#pdf("~/Desktop/CDS_Sex_Overlayed.pdf", width = 12, height = 12)
+layout.mat <- matrix(c(1:6), ncol = 2, byrow = TRUE)
+layout(layout.mat, widths = c(1, 0.3))
+sex.cols = c("Female" = "#377eb8", "Male" = "#4daf4a")
+for(i in 1:length(cds.f.scans)){
+    par(mar = c(4,4,4,4))
+
+    sig.level.f <- summary(cds.f.perm, alpha = alpha)[,i]
+    sig.level.m <- summary(cds.m.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.f, sig.level.m, cds.f.scans[[i]]))*1.1
+    plot(cds.f.scans[[i]], map = map, ylim = c(0,ymax), col = sex.cols["Female"],
+        main = names(cds.f.scans)[i])
+    plot(cds.m.scans[[i]], map = map, add = TRUE, col = sex.cols["Male"])
+    plot.dim <- par("usr")
+    segments(x0 = plot.dim[1], x1 = plot.dim[2], y0 = sig.level.f, lty = c(1,2),
+        col = sex.cols["Female"])
+    segments(x0 = plot.dim[1], x1 = plot.dim[2], y0 = sig.level.m, lty = c(1,2),
+        col = sex.cols["Male"])
+    par(xpd = NA)
+    text(x = rep(plot.dim[2]*1.005, 2), y = sig.level.f, labels = alpha, adj = 0, cex = 0.7)
+    text(x = rep(plot.dim[2]*1.005, 2), y = sig.level.m, labels = alpha, adj = 0, cex = 0.7)
+
+    par(mar = c(0,0,4,2))
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = c(0,1))
+    legend(0, 0.9, lty = 1, col = sex.cols, legend = names(sex.cols), lwd = 3)
+}
+#dev.off()
+```
+
+
+### CDS QTL for Interaction Overlayed
+
+```{r int_cds, fig.width = 8, fig.height = 10}
+
+#pdf("~/Desktop/CDS_Interaction_overlayed.pdf", width = 12, height = 12)
+layout(matrix(c(1:6), ncol = 2, byrow = TRUE), widths = c(1, 0.3))
+for(i in 1:length(cds.int.scans)){
+    par(mar = c(4,4,4,0))
+    sig.level.int <- summary(cds.int.perm, alpha = alpha)[,i]
+    sig.level.add <- summary(cds.add.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.int, sig.level.add, cds.int.scans[[i]], cds.add.scans[[i]]))*1.1
+    plot(cds.int.scans[[i]], map = map, ylim = c(0, ymax), main = names(cds.int.scans)[i], 
+        col = "#d95f02")
+    plot(cds.add.scans[[i]], map = map, add = TRUE, col = "#463D86")
+    abline(h = sig.level.int, lty = c(1,2), col = "#d95f02")
+    abline(h = sig.level.add, lty = c(1,2), col = "#463D86")
+    par(mar = c(4,0,4,4))
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = c(0,1))
+    legend(0, 0.9, lty = 1, col = c("#d95f02", "#463D86"), 
+        legend = c("Interactive", "Additive"), lwd = 3)
+}
+#dev.off()
+```
+
+### CDS QTL Interaction-Additive
+
+```{r cds_int_add, fig.width = 10, fig.height = 10}
+#pdf("~/Desktop/CDS_Interaction-Additive.pdf", width = 10, height = 12)
+par(mfrow = c(3,1))
+for(i in 1:length(cds.int.scans)){
+    sig.level.int <- summary(cds.int.perm-cds.add.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.int, cds.int.scans[[i]]-cds.add.scans[[i]]))*1.1
+    plot(cds.int.scans[[i]]-cds.add.scans[[i]], map = map, ylim = c(0, ymax),
+        main = names(cds.int.scans)[i])
+    abline(h = sig.level.int, lty = c(1,2))
+}
+#dev.off()
+```
+
 ### CDS by individual LOD traces {.tabset .tabset-fade .tabset-pills}
 
-```{r plot_cds_scans, fig.width = 9, fig.height = 5, warning = FALSE, results = "asis"}
+```{r plot_cds_scans, fig.width = 10, fig.height = 4, warning = FALSE, results = "asis"}
 #plot the scans, and FDR results
 if(run_permutations){
     #pdf("~/Desktop/test.pdf")
@@ -1622,6 +1784,20 @@ for(i in 1:length(incidence)){
 }
 ```
 
+```{r check_diffs, eval = FALSE}
+
+par(mfrow = c(3,4))
+for(i in 1:ncol(incidence[[1]])){
+    xlim <- c(0, max(incidence[[1]][,1])*1.1)
+    ylim <- c(0, max(incidence[[2]][,1])*1.1)
+    plot(jitter(incidence[[1]][,i], factor = 2), 
+        jitter(incidence[[2]][,i], factor = 2), 
+        main = colnames(incidence[[1]])[i],
+        xlab = "Female Value", ylab = "Male Value", xlim = xlim, ylim = ylim)
+    abline(0,1)
+}
+
+```
 
 ## Map Incidence
 
@@ -1705,6 +1881,158 @@ rownames(inc.by.sex) <- paste(incidence.strains,
 incidence.covar <- matrix(1, ncol = 1, nrow = nrow(inc.by.sex))
 incidence.covar[1:nrow(incidence$incidence_female)] <- 0
 rownames(incidence.covar) <- rownames(inc.by.sex)
+```
+
+```{r mapping_by_sex}
+f.idx <- grep("F", rownames(inc.by.sex))
+m.idx <- grep("M", rownames(inc.by.sex))
+strain.sex.covar <- 1-dummy_covar(matrix(sapply(strsplit(rownames(inc.by.sex), "_"), function(x) x[2]), ncol = 1))
+rownames(strain.sex.covar) <- rownames(inc.by.sex)
+
+f.inc.scan <- map_pheno(mean.genoprobs, inc.by.sex[f.idx,], mean.K, 
+    exclude.zeros = exclude.zeros, 
+    results.file = file.path(results.dir, "Incidence_scan_f.RDS"))
+f.inc.perm.file <- file.path(results.dir, "Incidence_perm_scan_f.RDS")
+if(!file.exists(f.inc.perm.file)){
+    f.inc.perm <- scan1perm(genoprobs = mean.genoprobs, pheno = inc.by.sex[f.idx,], 
+        kinship = mean.K, n_perm = nperm)
+    saveRDS(f.inc.perm, f.inc.perm.file)
+}else{
+    f.inc.perm <- readRDS(f.inc.perm.file)
+}
+
+m.inc.scan <- map_pheno(mean.genoprobs, inc.by.sex[m.idx,], mean.K, 
+    exclude.zeros = exclude.zeros, 
+    results.file = file.path(results.dir, "Incidence_scan_m.RDS"))
+m.inc.perm.file <- file.path(results.dir, "Incidence_perm_scan_m.RDS")
+if(!file.exists(m.inc.perm.file)){
+    m.inc.perm <- scan1perm(genoprobs = mean.genoprobs, pheno = inc.by.sex[m.idx,], 
+        kinship = mean.K, n_perm = nperm)
+    saveRDS(m.inc.perm, m.inc.perm.file)
+}else{
+    m.inc.perm <- readRDS(m.inc.perm.file)
+}
+
+
+inc.scan.add <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
+    exclude.zeros = exclude.zeros, addcovar = strain.sex.covar,
+    results.file = file.path(results.dir, "Incidence_scan_add.RDS"))
+inc.add.perm.file <- file.path(results.dir, "Incidence_perm_scan_add.RDS")
+if(!file.exists(inc.add.perm.file)){
+    inc.add.perm <- scan1perm(genoprobs = mean.genoprobs, pheno = inc.by.sex, 
+        kinship = mean.K, n_perm = nperm, addcovar = strain.sex.covar)
+    saveRDS(inc.add.perm, inc.add.perm.file)
+}else{
+    inc.add.perm <- readRDS(inc.add.perm.file)
+}
+
+inc.scan.int <- map_pheno(mean.genoprobs, inc.by.sex, mean.K, 
+    exclude.zeros = exclude.zeros, addcovar = strain.sex.covar,
+    intcovar = strain.sex.covar, 
+    results.file = file.path(results.dir, "Incidence_scan_int.RDS"))
+inc.int.perm.file <- file.path(results.dir, "Incidence_perm_scan_int.RDS")
+if(!file.exists(inc.int.perm.file)){
+    inc.int.perm <- scan1perm(genoprobs = mean.genoprobs, pheno = inc.by.sex, 
+        kinship = mean.K, n_perm = nperm, addcovar = strain.sex.covar, 
+        intcovar = strain.sex.covar)
+    saveRDS(inc.int.perm, inc.int.perm.file)
+}else{
+    inc.int.perm <- readRDS(inc.int.perm.file)
+}
+```
+
+### Incidence QTL for Females {.tabset .tabset-fade .tabset-pills}
+
+```{r f_inc, fig.width = 10, fig.height = 4, results = "asis"}
+
+#pdf("~/Desktop/Incidence_Female.pdf", width = 10, height = 12);par(mfrow = c(3,1))
+plot_pval_fun(scan.results = f.inc.scan, perm.results = f.inc.perm, tab.level = "####")
+#dev.off()
+```
+
+### Incidence QTL for Males {.tabset .tabset-fade .tabset-pills}
+
+```{r m_inc, fig.width = 10, fig.height = 4, results = "asis"}
+
+#pdf("~/Desktop/Incidence_Male.pdf", width = 10, height = 12);par(mfrow = c(3,1))
+plot_pval_fun(scan.results = m.inc.scan, perm.results = m.inc.perm, tab.level = "####")
+#dev.off()
+```
+
+### Incidence QTL both sexes overlayed
+
+```{r inc_sex_overlayed, fig.width = 10, fig.height = 10}
+
+#pdf("~/Desktop/Incidence_Sex_Overlayed.pdf", width = 12, height = 12)
+layout.mat <- matrix(c(1:6), ncol = 2, byrow = TRUE)
+layout(layout.mat, widths = c(1, 0.3))
+sex.cols = c("Female" = "#377eb8", "Male" = "#4daf4a")
+for(i in 1:length(f.inc.scan)){
+    par(mar = c(4,4,4,4))
+
+    sig.level.f <- summary(f.inc.perm, alpha = alpha)[,i]
+    sig.level.m <- summary(m.inc.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.f, sig.level.m, f.inc.scan[[i]], m.inc.scan[[i]]))*1.1
+    plot(f.inc.scan[[i]], map = map, ylim = c(0,ymax), col = sex.cols["Female"], 
+        main = names(f.inc.scan)[i])
+    plot(m.inc.scan[[i]], map = map, add = TRUE, col = sex.cols["Male"])
+    plot.dim <- par("usr")
+    segments(x0 = plot.dim[1], x1 = plot.dim[2], y0 = sig.level.f, lty = c(1,2),
+        col = sex.cols["Female"])
+    segments(x0 = plot.dim[1], x1 = plot.dim[2], y0 = sig.level.m, lty = c(1,2),
+        col = sex.cols["Male"])
+    par(xpd = NA)
+    text(x = rep(plot.dim[2]*1.005, 2), y = sig.level.f, labels = alpha, adj = 0, cex = 0.7)
+    text(x = rep(plot.dim[2]*1.005, 2), y = sig.level.m, labels = alpha, adj = 0, cex = 0.7)
+
+    par(mar = c(0,0,4,2))
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = c(0,1))
+    legend(0, 0.9, lty = 1, col = sex.cols, legend = names(sex.cols), lwd = 3)
+}
+#dev.off()
+```
+
+### Incidence QTL for Interaction Overlayed
+
+```{r int_inc, fig.width = 10, fig.height = 10}
+
+#pdf("~/Desktop/Incidence_Interaction_overlayed.pdf", width = 12, height = 12)
+layout(matrix(c(1:6), ncol = 2, byrow = TRUE), widths = c(1, 0.3))
+for(i in 1:length(inc.scan.add)){
+    par(mar = c(4,4,4,0))
+    sig.level.int <- summary(inc.int.perm, alpha = alpha)[,i]
+    sig.level.add <- summary(inc.add.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.int, sig.level.add, inc.scan.int[[i]], inc.scan.add[[i]]))*1.1
+    plot(inc.scan.int[[i]], map = map, ylim = c(0, ymax), main = names(inc.scan.int)[i], 
+        col = "#d95f02")
+    plot(inc.scan.add[[i]], map = map, add = TRUE, col = "#463D86")
+    abline(h = sig.level.int, lty = c(1,2), col = "#d95f02")
+    abline(h = sig.level.add, lty = c(1,2), col = "#463D86")
+    par(mar = c(4,0,4,4))
+    plot.new()
+    plot.window(xlim = c(0,1), ylim = c(0,1))
+    legend(0, 0.9, lty = 1, col = c("#d95f02", "#463D86"), 
+        legend = c("Interactive", "Additive"), lwd = 3)
+}
+#dev.off()
+```
+
+### Incidence QTL Interaction-Additive
+
+```{r inc_int_add, fig.width = 10, fig.height = 10}
+
+#pdf("~/Desktop/Incidence_Interaction-Additive.pdf", width = 10, height = 12)
+par(mfrow = c(3,1))
+for(i in 1:length(inc.scan.int)){
+    sig.level.int <- summary(inc.int.perm-inc.add.perm, alpha = alpha)[,i]
+    ymax <- max(c(sig.level.int, inc.scan.int[[i]]-inc.scan.add[[i]]))*1.1
+    plot(inc.scan.int[[i]]-inc.scan.add[[i]], map = map, ylim = c(0, ymax),
+        main = names(inc.scan.int)[i])
+    plot.dim <- par("usr")
+    segments(x0 = plot.dim[1], x1 = plot.dim[2], y0 = sig.level.int, lty = c(1,2))
+}
+#dev.off()
 ```
 
 ### Overall Incidence Distributions - Not Normalized
@@ -2263,3 +2591,4 @@ plot_coefCC(coef.scan, map = map, scan1_output = lod.scan,
     ylim = c(-2, 2), col = strain.colors, top_panel_prop = 0.5, 
     main = paste(trait, "Chr", chr))
 ```
+
